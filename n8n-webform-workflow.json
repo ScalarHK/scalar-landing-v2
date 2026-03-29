@@ -1,0 +1,275 @@
+{
+  "name": "Scalar — Web Form Lead Capture + AI Response",
+  "nodes": [
+    {
+      "id": "node-wf-001",
+      "name": "Web Form Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webform-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-wf-002",
+      "name": "Return Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [440, 200],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"success\": true, \"message\": \"Thank you! We will be in touch shortly.\" }",
+        "options": {"responseCode": 200}
+      }
+    },
+    {
+      "id": "node-wf-003",
+      "name": "Extract Form Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 380],
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\n// Supports both JSON body and URL-encoded form data\nconst firstName = body.firstName || body.first_name || body.name?.split(' ')[0] || '';\nconst lastName = body.lastName || body.last_name || body.name?.split(' ').slice(1).join(' ') || '';\nconst email = body.email || body.emailAddress || '';\nconst phone = body.phone || body.phoneNumber || body.whatsapp || '';\nconst service = body.service || body.serviceInterest || body.inquiry_type || 'General Enquiry';\nconst message = body.message || body.notes || body.comment || '';\nconst preferredTime = body.preferredTime || body.preferred_date || '';\nconst source = body.source || body.utm_source || 'Website Form';\n\nreturn [{ json: {\n  firstName,\n  lastName,\n  fullName: [firstName, lastName].filter(Boolean).join(' ') || 'Guest',\n  email,\n  phone,\n  service,\n  message,\n  preferredTime,\n  source,\n  submittedAt: new Date().toISOString()\n} }];"
+      }
+    },
+    {
+      "id": "node-wf-004",
+      "name": "Business Hours Check (HKT)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 380],
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst hkOffset = 8 * 60;\nconst utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();\nconst hkMinutes = (utcMinutes + hkOffset) % (24 * 60);\nconst hkDay = new Date(now.getTime() + hkOffset * 60000).getUTCDay();\n\nconst isWeekday = hkDay >= 1 && hkDay <= 6;\nconst isOpenHours = hkMinutes >= 540 && hkMinutes < 1140;\nconst isBusinessHours = isWeekday && isOpenHours;\n\nreturn [{ json: { ...$input.first().json, isBusinessHours } }];"
+      }
+    },
+    {
+      "id": "node-wf-005",
+      "name": "Create GHL Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [880, 380],
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/contacts/upsert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ locationId: 'YOUR_GHL_LOCATION_ID', firstName: $json.firstName, lastName: $json.lastName, email: $json.email, phone: $json.phone ? '+852' + $json.phone.replace(/\\D/g,'') : undefined, source: $json.source, tags: ['webform-lead', $json.isBusinessHours ? 'business-hours' : 'after-hours'], customFields: [{ key: 'service_interest', field_value: $json.service },{ key: 'inquiry_message', field_value: $json.message },{ key: 'preferred_time', field_value: $json.preferredTime },{ key: 'last_channel', field_value: 'Web Form' }] }) }}"
+        },
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Version", "value": "2021-07-28"}]}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "ghl-api-key", "name": "GHL API Key"}}
+    },
+    {
+      "id": "node-wf-006",
+      "name": "Create GHL Opportunity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1080, 380],
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/opportunities/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ pipelineId: 'YOUR_GHL_PIPELINE_ID', locationId: 'YOUR_GHL_LOCATION_ID', name: $('Extract Form Fields').first().json.fullName + ' — ' + $('Extract Form Fields').first().json.service, pipelineStageId: 'YOUR_STAGE_ID_NEW_LEAD', status: 'open', contactId: $json.contact?.id, monetaryValue: 0, source: $('Extract Form Fields').first().json.source }) }}"
+        },
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Version", "value": "2021-07-28"}]}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "ghl-api-key", "name": "GHL API Key"}}
+    },
+    {
+      "id": "node-wf-007",
+      "name": "Generate AI Email Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1280, 380],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'system', content: 'You are writing a professional, warm email response on behalf of a Hong Kong med-aesthetics clinic. The email should: (1) thank them for their inquiry, (2) briefly acknowledge their interest in the specified service, (3) let them know a team member will be in contact within 1 business day to discuss and schedule a consultation, (4) include the clinic opening hours: Mon–Sat 9am–7pm. Keep it under 150 words. Do not quote prices. Sign off as \"The Clinic Team\".' },{ role: 'user', content: 'Client name: ' + $('Extract Form Fields').first().json.fullName + '\\nService interest: ' + $('Extract Form Fields').first().json.service + '\\nMessage: ' + $('Extract Form Fields').first().json.message + '\\nPreferred time: ' + ($('Extract Form Fields').first().json.preferredTime || 'Not specified') + '\\nSubmitted: ' + ($('Extract Form Fields').first().json.isBusinessHours ? 'During business hours' : 'After hours') }], max_tokens: 300, temperature: 0.6 }) }}"
+        },
+        "options": {}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "openai-api-key", "name": "OpenAI API Key"}}
+    },
+    {
+      "id": "node-wf-008",
+      "name": "Extract Email Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1480, 380],
+      "parameters": {
+        "jsCode": "const emailBody = $input.first().json.choices[0].message.content;\nconst formData = $('Extract Form Fields').first().json;\nreturn [{ json: {\n  ...formData,\n  emailBody,\n  emailSubject: `Thank you for your enquiry — ${formData.service}`\n} }];"
+      }
+    },
+    {
+      "id": "node-wf-009",
+      "name": "Has Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1680, 380],
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": false, "typeValidation": "strict"},
+          "conditions": [{"id": "cond-01", "leftValue": "={{ $json.email }}", "rightValue": "", "operator": {"type": "string", "operation": "notEquals"}}],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "node-wf-010",
+      "name": "Send Email via GHL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1880, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/conversations/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ type: 'Email', contactId: $('Create GHL Contact').first().json.contact?.id, locationId: 'YOUR_GHL_LOCATION_ID', subject: $json.emailSubject, html: '<p>' + $json.emailBody.replace(/\\n/g, '</p><p>') + '</p>' }) }}"
+        },
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Version", "value": "2021-07-28"}]}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "ghl-api-key", "name": "GHL API Key"}}
+    },
+    {
+      "id": "node-wf-011",
+      "name": "Has Phone?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1880, 480],
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": false, "typeValidation": "strict"},
+          "conditions": [{"id": "cond-02", "leftValue": "={{ $json.phone }}", "rightValue": "", "operator": {"type": "string", "operation": "notEquals"}}],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "node-wf-012",
+      "name": "Send WhatsApp Confirmation (WATI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2080, 420],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://live-mt-server.wati.io/YOUR_WATI_TENANT_ID/api/v1/sendSessionMessage/{{ ('852' + $json.phone.replace(/\\D/g,'')).replace(/^\\+/,'') }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ messageText: 'Hi ' + $json.firstName + '! 👋 Thank you for reaching out about ' + $json.service + '. We have received your enquiry and a team member will be in touch within 1 business day to schedule your consultation.\\n\\nClinic hours: Mon–Sat, 9am–7pm.' }) }}"
+        },
+        "options": {},
+        "_notes": "Replace YOUR_WATI_TENANT_ID. Phone must be digits only with country code — no + prefix. HK numbers: 852XXXXXXXX. If client is already in a WATI conversation, this sends as a session message (free). If >24h since last message, use sendTemplateMessage instead."
+      },
+      "credentials": {"httpHeaderAuth": {"id": "wati-api-key", "name": "WATI API Key"}}
+    },
+    {
+      "id": "node-wf-013",
+      "name": "Create GHL Task (Follow-up)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2080, 560],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://services.leadconnectorhq.com/contacts/{{ $('Create GHL Contact').first().json.contact?.id }}/tasks",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ title: 'Follow up: ' + $json.service + ' enquiry', body: 'Web form lead. Message: ' + $json.message, status: 'incompleted', dueDate: new Date(Date.now() + 24*60*60*1000).toISOString(), assignedTo: 'YOUR_GHL_USER_ID' }) }}"
+        },
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Version", "value": "2021-07-28"}]}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "ghl-api-key", "name": "GHL API Key"}}
+    }
+  ],
+  "connections": {
+    "Web Form Webhook": {
+      "main": [
+        [
+          {"node": "Return Success Response", "type": "main", "index": 0},
+          {"node": "Extract Form Fields", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Extract Form Fields": {
+      "main": [[{"node": "Business Hours Check (HKT)", "type": "main", "index": 0}]]
+    },
+    "Business Hours Check (HKT)": {
+      "main": [[{"node": "Create GHL Contact", "type": "main", "index": 0}]]
+    },
+    "Create GHL Contact": {
+      "main": [[{"node": "Create GHL Opportunity", "type": "main", "index": 0}]]
+    },
+    "Create GHL Opportunity": {
+      "main": [[{"node": "Generate AI Email Response", "type": "main", "index": 0}]]
+    },
+    "Generate AI Email Response": {
+      "main": [[{"node": "Extract Email Body", "type": "main", "index": 0}]]
+    },
+    "Extract Email Body": {
+      "main": [[{"node": "Has Email?", "type": "main", "index": 0}]]
+    },
+    "Has Email?": {
+      "main": [
+        [{"node": "Send Email via GHL", "type": "main", "index": 0}],
+        [{"node": "Has Phone?", "type": "main", "index": 0}]
+      ]
+    },
+    "Send Email via GHL": {
+      "main": [[{"node": "Has Phone?", "type": "main", "index": 0}]]
+    },
+    "Has Phone?": {
+      "main": [
+        [{"node": "Send WhatsApp Confirmation", "type": "main", "index": 0}],
+        [{"node": "Create GHL Task (Follow-up)", "type": "main", "index": 0}]
+      ]
+    },
+    "Send WhatsApp Confirmation": {
+      "main": [[{"node": "Create GHL Task (Follow-up)", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "_meta": {
+    "instanceId": "scalar-demo",
+    "notes": "SETUP REQUIRED: (1) Replace YOUR_GHL_LOCATION_ID, YOUR_GHL_PIPELINE_ID, YOUR_STAGE_ID_NEW_LEAD, YOUR_GHL_USER_ID. (2) Embed webhook URL in your web form action attribute or Typeform/Tally webhook settings. (3) Ensure GHL email sending is configured under Settings > Email Services. (4) Phone normalization assumes HK numbers — adjust prefix logic for other regions."
+  }
+}

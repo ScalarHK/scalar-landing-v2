@@ -1,0 +1,424 @@
+{
+  "name": "Scalar — Web Form Lead Capture + AI Response (Supabase)",
+  "nodes": [
+
+    {
+      "id": "node-wf-001",
+      "name": "Web Form Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webform-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+
+    {
+      "id": "node-wf-002",
+      "name": "Return Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 140],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"success\": true, \"message\": \"Thank you! We will be in touch shortly.\" }",
+        "options": { "responseCode": 200 }
+      }
+    },
+
+    {
+      "id": "node-wf-003",
+      "name": "Extract Form Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\nconst firstName = body.firstName || body.first_name || body.name?.split(' ')[0] || '';\nconst lastName = body.lastName || body.last_name || body.name?.split(' ').slice(1).join(' ') || '';\nconst email = (body.email || body.emailAddress || '').trim().toLowerCase();\nconst rawPhone = body.phone || body.phoneNumber || body.whatsapp || '';\nconst service = body.service || body.serviceInterest || body.inquiry_type || 'General Enquiry';\nconst message = body.message || body.notes || body.comment || '';\nconst preferredTime = body.preferredTime || body.preferred_date || '';\nconst source = body.source || body.utm_source || 'Website Form';\n\n// Normalise HK phone to E.164\nconst digits = rawPhone.replace(/\\D/g, '');\nconst phone = rawPhone ? (digits.startsWith('852') ? '+' + digits : '+852' + digits) : '';\n\nreturn [{ json: {\n  firstName,\n  lastName,\n  fullName: [firstName, lastName].filter(Boolean).join(' ') || 'Guest',\n  email,\n  phone,\n  waId: phone.replace('+', ''), // WATI needs no + prefix\n  service,\n  message,\n  preferredTime,\n  source,\n  submittedAt: new Date().toISOString()\n} }];"
+      }
+    },
+
+    {
+      "id": "node-wf-004",
+      "name": "Business Hours Check (HKT)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst hkOffset = 8 * 60;\nconst utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();\nconst hkMinutes = (utcMinutes + hkOffset) % (24 * 60);\nconst hkDay = new Date(now.getTime() + hkOffset * 60000).getUTCDay();\n\nconst isWeekday = hkDay >= 1 && hkDay <= 6;\nconst isOpenHours = hkMinutes >= 540 && hkMinutes < 1140;\nconst isBusinessHours = isWeekday && isOpenHours;\n\nreturn [{ json: { ...$input.first().json, isBusinessHours } }];"
+      }
+    },
+
+    {
+      "id": "node-wf-005",
+      "name": "Upsert Contact (Supabase)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [900, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/contacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ phone: $json.phone || undefined, email: $json.email || undefined, name: $json.fullName, first_name: $json.firstName, last_name: $json.lastName, source: $json.source, tags: ['webform', $json.isBusinessHours ? 'business-hours' : 'after-hours'] }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } },
+      "_notes": "Upsert matches on phone (UNIQUE). If phone is empty and only email exists, will insert a new row — consider adding email to the unique index if needed."
+    },
+
+    {
+      "id": "node-wf-006",
+      "name": "Insert Lead (Supabase)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ contact_id: $('Upsert Contact (Supabase)').first().json[0]?.id, status: 'new', channel: 'webform', service_interest: $('Extract Form Fields').first().json.service, preferred_time: $('Extract Form Fields').first().json.preferredTime, booking_data: { message: $('Extract Form Fields').first().json.message, submittedAt: $('Extract Form Fields').first().json.submittedAt, isBusinessHours: $('Extract Form Fields').first().json.isBusinessHours }, notes: $('Extract Form Fields').first().json.message }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-wf-007",
+      "name": "Log Inbound Message (Supabase)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ contact_id: $('Upsert Contact (Supabase)').first().json[0]?.id, channel: 'webform', direction: 'inbound', content: $('Extract Form Fields').first().json.message || '[No message]', metadata: { service: $('Extract Form Fields').first().json.service, preferredTime: $('Extract Form Fields').first().json.preferredTime, source: $('Extract Form Fields').first().json.source }, ai_handled: false }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-wf-008",
+      "name": "Generate AI Email (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1560, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'system', content: 'You are writing a professional, warm email response on behalf of a Hong Kong med-aesthetics clinic.\\n\\nThe email should:\\n1. Thank them for their enquiry\\n2. Briefly acknowledge their interest in the specified service\\n3. Let them know a team member will be in contact within 1 business day to discuss and schedule a consultation\\n4. Mention clinic hours: Mon–Sat 9am–7pm HKT\\n\\nKeep it under 150 words. Do not quote prices. Sign off as \"The Clinic Team\". Write in the same language the enquiry was made in (default English).' }, { role: 'user', content: 'Client name: ' + $('Extract Form Fields').first().json.fullName + '\\nService interest: ' + $('Extract Form Fields').first().json.service + '\\nMessage: ' + ($('Extract Form Fields').first().json.message || 'No message provided') + '\\nPreferred time: ' + ($('Extract Form Fields').first().json.preferredTime || 'Not specified') + '\\nSubmitted: ' + ($('Extract Form Fields').first().json.isBusinessHours ? 'During business hours' : 'After hours') }], max_tokens: 300, temperature: 0.6 }) }}"
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "openai-api-key", "name": "OpenAI API Key" } }
+    },
+
+    {
+      "id": "node-wf-009",
+      "name": "Extract Email Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 300],
+      "parameters": {
+        "jsCode": "const emailBody = $input.first().json.choices[0].message.content;\nconst formData = $('Extract Form Fields').first().json;\nconst contactId = $('Upsert Contact (Supabase)').first().json[0]?.id;\n\nreturn [{ json: {\n  ...formData,\n  contactId,\n  emailBody,\n  emailSubject: `Thank you for your enquiry — ${formData.service}`,\n  htmlBody: '<p>' + emailBody.replace(/\\n\\n/g, '</p><p>').replace(/\\n/g, '<br>') + '</p>'\n} }];"
+      }
+    },
+
+    {
+      "id": "node-wf-010",
+      "name": "Has Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2000, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [{ "id": "cond-email", "leftValue": "={{ $json.email }}", "rightValue": "", "operator": { "type": "string", "operation": "notEquals" } }],
+          "combinator": "and"
+        }
+      }
+    },
+
+    {
+      "id": "node-wf-011",
+      "name": "Send Email via Resend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2220, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ from: 'The Clinic Team <noreply@yourclinic.hk>', to: [$json.email], subject: $json.emailSubject, html: $json.htmlBody }) }}"
+        },
+        "options": {},
+        "_notes": "Domain must be verified in Resend dashboard. Update 'from' address to match your verified domain. Resend free tier: 100 emails/day, 3,000/month."
+      },
+      "credentials": { "httpHeaderAuth": { "id": "resend-api-key", "name": "Resend API Key" } }
+    },
+
+    {
+      "id": "node-wf-012",
+      "name": "Has Phone?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2220, 420],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [{ "id": "cond-phone", "leftValue": "={{ $('Extract Form Fields').first().json.phone }}", "rightValue": "", "operator": { "type": "string", "operation": "notEquals" } }],
+          "combinator": "and"
+        }
+      }
+    },
+
+    {
+      "id": "node-wf-013",
+      "name": "Send WhatsApp Confirmation (WATI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2440, 340],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://live-mt-server.wati.io/YOUR_WATI_TENANT_ID/api/v1/sendSessionMessage/{{ $('Extract Form Fields').first().json.waId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ messageText: 'Hi ' + $('Extract Form Fields').first().json.firstName + '! 👋 Thank you for reaching out about ' + $('Extract Form Fields').first().json.service + '. We have received your enquiry and a team member will be in touch within 1 business day to schedule your consultation.\\n\\nClinic hours: Mon–Sat, 9am–7pm.' }) }}"
+        },
+        "options": { "response": { "response": { "neverError": true } } },
+        "_notes": "This will only work if the customer has messaged your WhatsApp number first (within 24h). For new contacts who haven't initiated, use sendTemplateMessage with an approved opt-in template."
+      },
+      "credentials": { "httpHeaderAuth": { "id": "wati-api-key", "name": "WATI API Key" } }
+    },
+
+    {
+      "id": "node-wf-014",
+      "name": "Log Outbound Email (Supabase)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2660, 180],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ contact_id: $('Extract Email Body').first().json.contactId, channel: 'email', direction: 'outbound', content: $('Extract Email Body').first().json.emailBody, metadata: { subject: $('Extract Email Body').first().json.emailSubject, sentVia: 'resend', ai_generated: true }, ai_handled: true }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-wf-015",
+      "name": "Slack: New Web Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2660, 420],
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_SLACK_WEBHOOK_URL",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ text: ':page_facing_up: *New web form lead*\\n*Name:* ' + $('Extract Form Fields').first().json.fullName + '\\n*Service:* ' + $('Extract Form Fields').first().json.service + '\\n*Email:* ' + ($('Extract Form Fields').first().json.email || 'n/a') + '\\n*Phone:* ' + ($('Extract Form Fields').first().json.phone || 'n/a') + '\\n*Message:* ' + ($('Extract Form Fields').first().json.message || 'None') + '\\n*Timing:* ' + ($('Extract Form Fields').first().json.isBusinessHours ? 'Business hours' : 'After hours') }) }}"
+        },
+        "options": {}
+      }
+    },
+
+    {
+      "id": "node-wf-016",
+      "name": "CRM Adapter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2880, 300],
+      "parameters": {
+        "jsCode": "// ── CRM ADAPTER ────────────────────────────────────────────\n// Edit this node per client to match their CRM field names.\n// This node always runs regardless of email/phone availability.\n// ────────────────────────────────────────────────────────────\n\nconst form = $('Extract Form Fields').first().json;\nconst leadRow = $('Insert Lead (Supabase)').first().json[0];\nconst contactRow = $('Upsert Contact (Supabase)').first().json[0];\n\nconst crmPayload = {\n  source: 'Scalar AI Receptionist',\n  channel: 'webform',\n  lead_id: leadRow?.id,\n  contact_id: contactRow?.id,\n  name: form.fullName,\n  first_name: form.firstName,\n  last_name: form.lastName,\n  email: form.email,\n  phone: form.phone,\n  service_interest: form.service,\n  preferred_time: form.preferredTime,\n  message: form.message,\n  status: 'new',\n  captured_at: form.submittedAt\n};\n\nconst CLIENT_CRM_ENDPOINT = 'YOUR_CLIENT_CRM_WEBHOOK_URL';\nconst CLIENT_NAME = 'Demo Clinic';\n\nreturn [{ json: { crmPayload, CLIENT_CRM_ENDPOINT, CLIENT_NAME } }];"
+      }
+    },
+
+    {
+      "id": "node-wf-017",
+      "name": "Send to Client CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [3100, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.CLIENT_CRM_ENDPOINT }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify($json.crmPayload) }}"
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      }
+    },
+
+    {
+      "id": "node-wf-018",
+      "name": "Log CRM Payload (Supabase)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [3320, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/crm_payloads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ lead_id: $('Insert Lead (Supabase)').first().json[0]?.id, contact_id: $('Upsert Contact (Supabase)').first().json[0]?.id, client_name: $('CRM Adapter').first().json.CLIENT_NAME, payload: $('CRM Adapter').first().json.crmPayload, endpoint: $('CRM Adapter').first().json.CLIENT_CRM_ENDPOINT, response_code: $('Send to Client CRM').first().json.statusCode || 0, success: ($('Send to Client CRM').first().json.statusCode >= 200 && $('Send to Client CRM').first().json.statusCode < 300) }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    }
+
+  ],
+
+  "connections": {
+    "Web Form Webhook": {
+      "main": [[
+        { "node": "Return Success Response", "type": "main", "index": 0 },
+        { "node": "Extract Form Fields", "type": "main", "index": 0 }
+      ]]
+    },
+    "Extract Form Fields": {
+      "main": [[{ "node": "Business Hours Check (HKT)", "type": "main", "index": 0 }]]
+    },
+    "Business Hours Check (HKT)": {
+      "main": [[{ "node": "Upsert Contact (Supabase)", "type": "main", "index": 0 }]]
+    },
+    "Upsert Contact (Supabase)": {
+      "main": [[{ "node": "Insert Lead (Supabase)", "type": "main", "index": 0 }]]
+    },
+    "Insert Lead (Supabase)": {
+      "main": [[{ "node": "Log Inbound Message (Supabase)", "type": "main", "index": 0 }]]
+    },
+    "Log Inbound Message (Supabase)": {
+      "main": [[{ "node": "Generate AI Email (OpenAI)", "type": "main", "index": 0 }]]
+    },
+    "Generate AI Email (OpenAI)": {
+      "main": [[{ "node": "Extract Email Body", "type": "main", "index": 0 }]]
+    },
+    "Extract Email Body": {
+      "main": [[{ "node": "Has Email?", "type": "main", "index": 0 }]]
+    },
+    "Has Email?": {
+      "main": [
+        [{ "node": "Send Email via Resend", "type": "main", "index": 0 }],
+        [{ "node": "Has Phone?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Email via Resend": {
+      "main": [[
+        { "node": "Has Phone?", "type": "main", "index": 0 },
+        { "node": "Log Outbound Email (Supabase)", "type": "main", "index": 0 }
+      ]]
+    },
+    "Has Phone?": {
+      "main": [
+        [{ "node": "Send WhatsApp Confirmation (WATI)", "type": "main", "index": 0 }],
+        [{ "node": "Slack: New Web Lead", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send WhatsApp Confirmation (WATI)": {
+      "main": [[{ "node": "Slack: New Web Lead", "type": "main", "index": 0 }]]
+    },
+    "Slack: New Web Lead": {
+      "main": [[{ "node": "CRM Adapter", "type": "main", "index": 0 }]]
+    },
+    "CRM Adapter": {
+      "main": [[{ "node": "Send to Client CRM", "type": "main", "index": 0 }]]
+    },
+    "Send to Client CRM": {
+      "main": [[{ "node": "Log CRM Payload (Supabase)", "type": "main", "index": 0 }]]
+    }
+  },
+
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "_meta": {
+    "instanceId": "scalar-demo",
+    "version": "2.0-supabase",
+    "notes": "SETUP CHECKLIST: (1) Set 'Web Form Webhook' URL in demo-booking-form.html (N8N_WEBHOOK_URL constant). (2) Create Resend account → verify domain → create API key → create credential 'Resend API Key' (httpHeaderAuth, header: Authorization, value: Bearer re_xxxxx). Update 'from' address in Send Email node. (3) Replace YOUR_WATI_TENANT_ID in Send WhatsApp node URL. (4) Replace YOUR_SUPABASE_SERVICE_KEY in all Authorization headers. (5) Replace YOUR_SLACK_WEBHOOK_URL. (6) Replace YOUR_CLIENT_CRM_WEBHOOK_URL in CRM Adapter node. (7) GHL is fully removed — contact+lead data lives in Supabase, email via Resend, notifications via Slack."
+  }
+}

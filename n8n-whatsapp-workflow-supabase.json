@@ -1,0 +1,529 @@
+{
+  "name": "Scalar — WhatsApp AI Receptionist (Supabase)",
+  "nodes": [
+
+    {
+      "id": "node-wa-001",
+      "name": "WATI Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wati-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+
+    {
+      "id": "node-wa-002",
+      "name": "Return 200 OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 140],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"ok\" }",
+        "options": { "responseCode": 200 }
+      }
+    },
+
+    {
+      "id": "node-wa-003",
+      "name": "Filter & Extract Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "jsCode": "// WATI sends all events here — filter for inbound customer messages only\nconst body = $input.first().json.body || $input.first().json;\n\n// Skip messages sent by the clinic team (owner = true) and non-message events\nif (body.owner === true || body.eventType !== 'message') {\n  return [];\n}\n\nconst waId = body.waId || body.id || ''; // WhatsApp number without +\nconst senderName = body.senderName || body.fullName || 'Unknown';\nconst text = body.text || body.body || '';\n\nif (!waId || !text) return [];\n\n// Normalise to E.164 with HK prefix (+852)\nconst digits = waId.replace(/\\D/g, '');\nconst phone = digits.startsWith('852') ? '+' + digits : '+852' + digits;\n\nreturn [{ json: {\n  waId,\n  phone,\n  senderName,\n  text,\n  rawPayload: body,\n  receivedAt: new Date().toISOString()\n} }];"
+      }
+    },
+
+    {
+      "id": "node-wa-004",
+      "name": "Business Hours Check (HKT)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300],
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst hkOffset = 8 * 60;\nconst utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();\nconst hkMinutes = (utcMinutes + hkOffset) % (24 * 60);\nconst hkDay = new Date(now.getTime() + hkOffset * 60000).getUTCDay(); // 0=Sun\n\n// Business hours: Mon–Sat (1–6) 09:00–19:00 HKT\nconst isWeekday = hkDay >= 1 && hkDay <= 6;\nconst isOpenHours = hkMinutes >= 540 && hkMinutes < 1140;\nconst isBusinessHours = isWeekday && isOpenHours;\n\nreturn [{ json: { ...$input.first().json, isBusinessHours } }];"
+      }
+    },
+
+    {
+      "id": "node-wa-005",
+      "name": "Business Hours?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [{ "id": "cond-bh", "leftValue": "={{ $json.isBusinessHours }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true" } }],
+          "combinator": "and"
+        }
+      }
+    },
+
+    {
+      "id": "node-wa-bh1",
+      "name": "[BH] Upsert Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 140],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/contacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ phone: $json.phone, name: $json.senderName, source: 'WhatsApp', tags: ['whatsapp', 'business-hours'] }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-wa-bh2",
+      "name": "[BH] Log Inbound Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 140],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ contact_id: $('node-wa-bh1').first().json[0]?.id, channel: 'whatsapp', direction: 'inbound', content: $('Filter & Extract Message').first().json.text, metadata: { waId: $('Filter & Extract Message').first().json.waId, handledBy: 'receptionist-inbox' }, ai_handled: false }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } },
+      "_notes": "Business hours — WATI shared inbox handles the conversation. n8n only logs the contact and message. Receptionist replies manually via WATI."
+    },
+
+    {
+      "id": "node-wa-ah1",
+      "name": "[AH] Upsert Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 460],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/contacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ phone: $json.phone, name: $json.senderName, source: 'WhatsApp', tags: ['whatsapp', 'after-hours'] }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-wa-ah2",
+      "name": "[AH] Get Conversation History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 460],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/conversations?contact_id=eq.{{ $('node-wa-ah1').first().json[0]?.id }}&channel=eq.whatsapp&select=*",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-wa-ah3",
+      "name": "[AH] Build AI Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 460],
+      "parameters": {
+        "jsCode": "const messageData = $('Filter & Extract Message').first().json;\nconst contactRow = $('node-wa-ah1').first().json[0];\nconst conversationRows = $('node-wa-ah2').first().json; // Array, may be empty\n\nconst contactId = contactRow?.id;\nconst existingConversation = conversationRows.length > 0 ? conversationRows[0] : null;\nconst existingHistory = existingConversation?.history || [];\n\n// Append inbound message to working history\nconst updatedHistory = [\n  ...existingHistory,\n  { role: 'user', content: messageData.text, timestamp: new Date().toISOString() }\n];\n\n// Build OpenAI messages — use last 12 turns for context window\nconst recentHistory = updatedHistory.slice(-12);\nconst openAiMessages = recentHistory.map(m => ({\n  role: m.role,\n  content: m.content\n}));\n\nreturn [{ json: {\n  contactId,\n  phone: messageData.phone,\n  waId: messageData.waId,\n  senderName: messageData.senderName,\n  inboundText: messageData.text,\n  conversationId: existingConversation?.id || null,\n  isNewConversation: !existingConversation,\n  existingHistory,\n  updatedHistory,      // includes new inbound message\n  openAiMessages,\n  priorMessageCount: existingHistory.length\n} }];"
+      }
+    },
+
+    {
+      "id": "node-wa-ah4",
+      "name": "[AH] Call OpenAI (Aria)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1780, 460],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'system', content: 'You are Aria, a warm and professional AI receptionist for a Hong Kong med-aesthetics clinic. Your job is to answer enquiries, explain services, and capture booking intent after hours.\\n\\nGuidelines:\\n- Respond naturally in the same language the client uses (English or Traditional Chinese)\\n- Keep replies concise — WhatsApp messages, not essays\\n- Never quote prices; say the team will confirm during consultation\\n- If the client wants to book or shows strong interest, extract their intent using this exact pattern at the END of your reply:\\n[BOOKING_INTENT]{\"name\":\"<name>\",\"service\":\"<service>\",\"preferred_time\":\"<time or empty>\"}[/BOOKING_INTENT]\\n- Clinic hours: Mon–Sat 9am–7pm HKT. Outside these hours you are handling the conversation; team will follow up next business day.' }, ...$json.openAiMessages], max_tokens: 400, temperature: 0.6 }) }}"
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "openai-api-key", "name": "OpenAI API Key" } }
+    },
+
+    {
+      "id": "node-wa-ah5",
+      "name": "[AH] Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 460],
+      "parameters": {
+        "jsCode": "const aiRaw = $input.first().json.choices[0].message.content;\nconst ctx = $('node-wa-ah3').first().json;\n\n// Extract booking intent block if present\nlet bookingIntent = null;\nconst intentMatch = aiRaw.match(/\\[BOOKING_INTENT\\]([\\s\\S]*?)\\[\\/BOOKING_INTENT\\]/);\nif (intentMatch) {\n  try { bookingIntent = JSON.parse(intentMatch[1]); } catch(e) {}\n}\n\n// Clean reply text — strip the intent block before sending to customer\nconst aiText = aiRaw.replace(/\\[BOOKING_INTENT\\][\\s\\S]*?\\[\\/BOOKING_INTENT\\]/g, '').trim();\n\n// Append AI reply to conversation history\nconst finalHistory = [\n  ...ctx.updatedHistory,\n  { role: 'assistant', content: aiText, timestamp: new Date().toISOString() }\n];\n\nreturn [{ json: {\n  ...ctx,\n  aiText,\n  bookingIntent,\n  hasBookingIntent: bookingIntent !== null,\n  finalHistory,\n  finalMessageCount: finalHistory.length\n} }];"
+      }
+    },
+
+    {
+      "id": "node-wa-ah6",
+      "name": "[AH] Upsert Conversation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2220, 460],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/conversations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ contact_id: $json.contactId, channel: 'whatsapp', history: $json.finalHistory, last_message_at: new Date().toISOString(), message_count: $json.finalMessageCount }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-wa-ah7",
+      "name": "[AH] Log Inbound Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2440, 360],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ contact_id: $json.contactId, channel: 'whatsapp', direction: 'inbound', content: $json.inboundText, metadata: { waId: $json.waId }, ai_handled: true }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-wa-ah8",
+      "name": "[AH] Log Outbound Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2440, 560],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ contact_id: $json.contactId, channel: 'whatsapp', direction: 'outbound', content: $json.aiText, metadata: { model: 'gpt-4o', hasBookingIntent: $json.hasBookingIntent }, ai_handled: true }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-wa-ah9",
+      "name": "[AH] Send WATI Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2660, 460],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://live-mt-server.wati.io/YOUR_WATI_TENANT_ID/api/v1/sendSessionMessage/{{ $('node-wa-ah5').first().json.waId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ messageText: $('node-wa-ah5').first().json.aiText }) }}"
+        },
+        "options": {},
+        "_notes": "sendSessionMessage is free within the 24h window. If >24h since last customer message, this will fail — use sendTemplateMessage with a pre-approved template instead."
+      },
+      "credentials": { "httpHeaderAuth": { "id": "wati-api-key", "name": "WATI API Key" } }
+    },
+
+    {
+      "id": "node-wa-ah10",
+      "name": "Booking Intent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2880, 460],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [{ "id": "cond-intent", "leftValue": "={{ $('node-wa-ah5').first().json.hasBookingIntent }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true" } }],
+          "combinator": "and"
+        }
+      }
+    },
+
+    {
+      "id": "node-wa-ah11",
+      "name": "Insert Lead (Supabase)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [3100, 360],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ contact_id: $('node-wa-ah5').first().json.contactId, status: 'consultation_requested', channel: 'whatsapp', service_interest: $('node-wa-ah5').first().json.bookingIntent?.service || 'Unspecified', preferred_time: $('node-wa-ah5').first().json.bookingIntent?.preferred_time || '', booking_data: $('node-wa-ah5').first().json.bookingIntent || {}, notes: 'Captured after hours via WhatsApp AI' }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-wa-ah12",
+      "name": "Slack: Booking Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [3100, 560],
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_SLACK_WEBHOOK_URL",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ text: ':calendar: *New booking intent captured (WhatsApp — after hours)*\\n*Client:* ' + $('node-wa-ah5').first().json.senderName + ' (' + $('node-wa-ah5').first().json.phone + ')\\n*Service:* ' + ($('node-wa-ah5').first().json.bookingIntent?.service || 'Not specified') + '\\n*Preferred time:* ' + ($('node-wa-ah5').first().json.bookingIntent?.preferred_time || 'Not specified') + '\\n_Follow up next business day via WATI inbox_' }) }}"
+        },
+        "options": {}
+      },
+      "_notes": "No auth needed for Incoming Webhooks. Set YOUR_SLACK_WEBHOOK_URL from Slack App settings."
+    },
+
+    {
+      "id": "node-wa-ah13",
+      "name": "CRM Adapter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3320, 360],
+      "parameters": {
+        "jsCode": "// ── CRM ADAPTER ────────────────────────────────────────────\n// Formats the Supabase lead into whatever JSON payload the\n// client's CRM or webhook expects. Edit this node per client.\n// ────────────────────────────────────────────────────────────\n\nconst ctx = $('node-wa-ah5').first().json;\nconst leadRow = $input.first().json[0]; // Supabase returns array\n\n// Standard Scalar payload — adapt field names to match client CRM\nconst crmPayload = {\n  source: 'Scalar AI Receptionist',\n  channel: 'whatsapp',\n  lead_id: leadRow?.id,\n  contact_id: ctx.contactId,\n  name: ctx.senderName,\n  phone: ctx.phone,\n  service_interest: ctx.bookingIntent?.service,\n  preferred_time: ctx.bookingIntent?.preferred_time,\n  status: 'consultation_requested',\n  captured_at: new Date().toISOString()\n};\n\n// TODO: Replace with client's actual CRM endpoint and auth\n// Example: Cliniko, Fresha, or a custom webhook\nconst CLIENT_CRM_ENDPOINT = 'YOUR_CLIENT_CRM_WEBHOOK_URL';\nconst CLIENT_NAME = 'Demo Clinic';\n\nreturn [{ json: { crmPayload, CLIENT_CRM_ENDPOINT, CLIENT_NAME, leadRow } }];"
+      }
+    },
+
+    {
+      "id": "node-wa-ah14",
+      "name": "Send to Client CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [3540, 360],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.CLIENT_CRM_ENDPOINT }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify($json.crmPayload) }}"
+        },
+        "options": { "response": { "response": { "neverError": true } } },
+        "_notes": "neverError=true means the workflow won't break if the client CRM is down. Log the response_code in crm_payloads table for retry logic."
+      }
+    },
+
+    {
+      "id": "node-wa-ah15",
+      "name": "Log CRM Payload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [3760, 360],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/crm_payloads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ lead_id: $('Insert Lead (Supabase)').first().json[0]?.id, contact_id: $('node-wa-ah5').first().json.contactId, client_name: $('CRM Adapter').first().json.CLIENT_NAME, payload: $('CRM Adapter').first().json.crmPayload, endpoint: $('CRM Adapter').first().json.CLIENT_CRM_ENDPOINT, response_code: $('Send to Client CRM').first().json.statusCode || 0, success: ($('Send to Client CRM').first().json.statusCode >= 200 && $('Send to Client CRM').first().json.statusCode < 300) }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    }
+
+  ],
+
+  "connections": {
+    "WATI Webhook": {
+      "main": [[
+        { "node": "Return 200 OK", "type": "main", "index": 0 },
+        { "node": "Filter & Extract Message", "type": "main", "index": 0 }
+      ]]
+    },
+    "Filter & Extract Message": {
+      "main": [[{ "node": "Business Hours Check (HKT)", "type": "main", "index": 0 }]]
+    },
+    "Business Hours Check (HKT)": {
+      "main": [[{ "node": "Business Hours?", "type": "main", "index": 0 }]]
+    },
+    "Business Hours?": {
+      "main": [
+        [{ "node": "[BH] Upsert Contact", "type": "main", "index": 0 }],
+        [{ "node": "[AH] Upsert Contact", "type": "main", "index": 0 }]
+      ]
+    },
+    "[BH] Upsert Contact": {
+      "main": [[{ "node": "[BH] Log Inbound Message", "type": "main", "index": 0 }]]
+    },
+    "[AH] Upsert Contact": {
+      "main": [[{ "node": "[AH] Get Conversation History", "type": "main", "index": 0 }]]
+    },
+    "[AH] Get Conversation History": {
+      "main": [[{ "node": "[AH] Build AI Context", "type": "main", "index": 0 }]]
+    },
+    "[AH] Build AI Context": {
+      "main": [[{ "node": "[AH] Call OpenAI (Aria)", "type": "main", "index": 0 }]]
+    },
+    "[AH] Call OpenAI (Aria)": {
+      "main": [[{ "node": "[AH] Parse AI Response", "type": "main", "index": 0 }]]
+    },
+    "[AH] Parse AI Response": {
+      "main": [[{ "node": "[AH] Upsert Conversation", "type": "main", "index": 0 }]]
+    },
+    "[AH] Upsert Conversation": {
+      "main": [[
+        { "node": "[AH] Log Inbound Message", "type": "main", "index": 0 },
+        { "node": "[AH] Log Outbound Message", "type": "main", "index": 0 },
+        { "node": "[AH] Send WATI Reply", "type": "main", "index": 0 }
+      ]]
+    },
+    "[AH] Send WATI Reply": {
+      "main": [[{ "node": "Booking Intent?", "type": "main", "index": 0 }]]
+    },
+    "Booking Intent?": {
+      "main": [
+        [
+          { "node": "Insert Lead (Supabase)", "type": "main", "index": 0 },
+          { "node": "Slack: Booking Alert", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "Insert Lead (Supabase)": {
+      "main": [[{ "node": "CRM Adapter", "type": "main", "index": 0 }]]
+    },
+    "CRM Adapter": {
+      "main": [[{ "node": "Send to Client CRM", "type": "main", "index": 0 }]]
+    },
+    "Send to Client CRM": {
+      "main": [[{ "node": "Log CRM Payload", "type": "main", "index": 0 }]]
+    }
+  },
+
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "_meta": {
+    "instanceId": "scalar-demo",
+    "version": "2.0-supabase",
+    "notes": "SETUP CHECKLIST: (1) In n8n, create credential 'Supabase Service Key' (httpHeaderAuth, header name: apikey, value: your service_role key). (2) Create credential 'WATI API Key' (httpHeaderAuth, header name: Authorization, value: Bearer YOUR_WATI_API_KEY). (3) Create credential 'OpenAI API Key'. (4) Replace YOUR_WATI_TENANT_ID in the Send WATI Reply node URL. (5) Replace YOUR_SUPABASE_SERVICE_KEY in all Authorization headers (or use expression referencing the credential). (6) Set WATI webhook URL in WATI Dashboard to: https://YOUR_N8N_URL/webhook/wati-webhook. (7) Replace YOUR_CLIENT_CRM_WEBHOOK_URL in CRM Adapter node. (8) Replace YOUR_SLACK_WEBHOOK_URL in Slack node."
+  }
+}
