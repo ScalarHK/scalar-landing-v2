@@ -332,6 +332,7 @@ const ChatInterface = ({ data, domain }) => {
           businessType: data?.type || 'service-business',
           openingHours: data?.openingHours || null,
           tokenEstimate: tokenEstimate,
+          language: language,
         }),
       });
 
@@ -425,7 +426,9 @@ const ChatInterface = ({ data, domain }) => {
           businessName: data?.businessName || 'Our Business',
           services: data?.services || [],
           businessType: data?.type || 'service-business',
+          openingHours: data?.openingHours || null,
           tokenEstimate: tokenEstimate, // Pass token estimate for server-side validation
+          language: language,
         }),
       });
 
@@ -600,7 +603,9 @@ const InstagramChatInterface = ({ data, domain }) => {
           businessName: data?.businessName || 'Our Business',
           services: data?.services || [],
           businessType: data?.type || 'service-business',
+          openingHours: data?.openingHours || null,
           tokenEstimate: tokenEstimate,
+          language: language,
         }),
       });
 
