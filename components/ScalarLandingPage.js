@@ -289,7 +289,7 @@ const LoadingSteps = ({ currentStep }) => {
 };
 
 // WhatsApp-style chat component
-const ChatInterface = ({ data, domain }) => {
+const ChatInterface = ({ data, domain, language }) => {
   const [messages, setMessages] = useState(data.sampleChat);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -536,7 +536,7 @@ const ChatInterface = ({ data, domain }) => {
 };
 
 // Instagram DM-style chat component
-const InstagramChatInterface = ({ data, domain }) => {
+const InstagramChatInterface = ({ data, domain, language }) => {
   const [messages, setMessages] = useState(data.sampleChat);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -1430,9 +1430,9 @@ export default function ScalarLandingPage() {
               </div>
               <div className="flex-1 min-h-0">
                 {chatSkin === 'whatsapp' ? (
-                  <ChatInterface data={businessData} domain={domain} />
+                  <ChatInterface data={businessData} domain={domain} language={language} />
                 ) : (
-                  <InstagramChatInterface data={businessData} domain={domain} />
+                  <InstagramChatInterface data={businessData} domain={domain} language={language} />
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-3 text-center">
