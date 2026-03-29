@@ -16,46 +16,70 @@ function extractBusinessName(domain) {
     .join(' ')
 }
 
-// Extract opening hours from HTML
-function extractOpeningHours($) {
+// Extract opening hours from HTML using AI
+async function extractOpeningHours($, allText, businessName) {
   let hours = null
 
-  // Try common selectors for opening hours
+  // Try common selectors for opening hours first
   const selectors = [
     '[class*="hours"]',
     '[class*="opening"]',
     '[id*="hours"]',
     '[id*="opening"]',
-    'h2:contains("Hours")',
-    'h2:contains("Opening Hours")',
-    'h3:contains("Hours")',
-    'h3:contains("Opening Hours")',
+    'footer',
+    '[class*="contact"]',
   ]
 
+  // Extract text from likely locations
+  let candidateText = ''
   for (const selector of selectors) {
     const element = $(selector)
     if (element.length > 0) {
-      const text = element.closest('div, section, article').text()
+      const text = element.text()
       if (text && text.length > 10) {
-        hours = text.substring(0, 500).trim()
-        break
+        candidateText += text + ' '
       }
     }
   }
 
-  // If not found, search for common patterns in all text
+  // If we found hours candidates, use AI to validate and extract
+  if (candidateText.length > 20) {
+    try {
+      const response = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'user',
+            content: `Extract ONLY the business opening hours from this text. Return the hours exactly as stated, nothing else. If no clear hours are found, return "Not found".
+
+Text: ${candidateText.substring(0, 500)}`,
+          },
+        ],
+        temperature: 0,
+        max_tokens: 100,
+      })
+
+      const result = response.choices[0].message.content.trim()
+      if (result !== 'Not found' && result.length > 5) {
+        hours = result
+      }
+    } catch (e) {
+      console.error('AI hours extraction failed:', e.message)
+    }
+  }
+
+  // Fallback: search for specific patterns in all text
   if (!hours) {
-    const bodyText = $('body').text()
     const patterns = [
-      /(?:Monday|Mon)[^.]*?(?:Sunday|Sun)[^.]*?(?:AM|PM|am|pm)[^.]{0,200}\./,
-      /(?:Hours?|Open)[:\s]+[^.]*?(?:AM|PM|am|pm)[^.]{0,150}\./,
-      /Mon[^.]*?Sun[^.]*?(?:am|AM)[^.]{0,100}/,
+      /(?:Monday|Mon)[^:]*?[:\s]+[^,]*?(?:Sunday|Sun)[^:]*?[:\s]+[^.]*?(?:AM|PM|am|pm)[^.]{0,100}\./,
+      /(?:Hours?)[:\s]+[^.]*?(?:AM|PM|am|pm)[^.]{0,100}\./,
+      /(?:Open|Hours)[^:]*?:[^.]*?(?:AM|PM|am|pm|a\.m|p\.m)[^.]{0,80}\./i,
     ]
 
     for (const pattern of patterns) {
-      const match = bodyText.match(pattern)
-      if (match) {
-        hours = match[0]
+      const match = allText.match(pattern)
+      if (match && match[0].length < 200) {
+        hours = match[0].trim()
         break
       }
     }
@@ -310,8 +334,8 @@ async function scrapeDomain(domain) {
     // Extract title
     const title = $('title').text() || $('h1').first().text() || extractBusinessName(cleanDomain)
 
-    // Extract opening hours
-    const openingHours = extractOpeningHours($)
+    // Extract opening hours (with AI validation)
+    const openingHours = await extractOpeningHours($, combinedText, title)
 
     // Extract all text from common service/content areas
     const serviceTexts = []
