@@ -766,6 +766,7 @@ export default function ScalarLandingPage() {
   const [domainParsed, setDomainParsed] = useState(null);
   const [error, setError] = useState('');
   const [chatSkin, setChatSkin] = useState('whatsapp'); // whatsapp or instagram
+  const [showAIDemo, setShowAIDemo] = useState(true); // true for AI demo, false for without AI
 
   const handleDomainSubmit = async (e) => {
     e.preventDefault();
@@ -976,31 +977,118 @@ export default function ScalarLandingPage() {
               </div>
             </div>
 
-            {/* Right Column - Preview Image */}
+            {/* Right Column - Before/After Comparison */}
             <div className="hidden md:flex justify-center">
               <div className="relative w-full max-w-sm">
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-3xl blur-3xl opacity-20 animate-pulse"></div>
+
+                {/* Toggle Button */}
+                <div className="relative mb-4 flex gap-2 bg-white rounded-xl p-1 shadow-lg">
+                  <button
+                    onClick={() => setShowAIDemo(!showAIDemo)}
+                    className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                      !showAIDemo
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    ❌ Without AI
+                  </button>
+                  <button
+                    onClick={() => setShowAIDemo(!showAIDemo)}
+                    className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                      showAIDemo
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}
+                  >
+                    ✅ With AI
+                  </button>
+                </div>
+
                 <div className="relative bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
-                  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4">
-                    <div className="h-10 bg-white rounded-lg opacity-50"></div>
-                  </div>
-                  <div className="p-4 space-y-3 h-96">
-                    <div className="flex justify-end">
-                      <div className="bg-emerald-500 text-white rounded-2xl px-4 py-2 max-w-xs rounded-br-none">
-                        <div className="h-3 bg-emerald-400 rounded opacity-50 w-32"></div>
+                  {showAIDemo ? (
+                    // With AI - Instant Response
+                    <>
+                      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 border-b">
+                        <div className="flex items-center justify-between">
+                          <div className="font-semibold text-gray-900 text-sm">Beauty Clinic</div>
+                          <div className="text-xs text-gray-500">Active now ✓</div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex justify-start">
-                      <div className="bg-gray-100 rounded-2xl px-4 py-2 max-w-xs rounded-bl-none">
-                        <div className="h-3 bg-gray-300 rounded w-40"></div>
+                      <div className="p-4 space-y-4">
+                        {/* User message */}
+                        <div className="flex justify-end">
+                          <div className="bg-blue-500 text-white rounded-2xl px-4 py-2 max-w-xs rounded-br-none">
+                            <p className="text-sm">Hi, do you offer Botox?</p>
+                            <p className="text-xs mt-1 text-blue-100">2:34 PM</p>
+                          </div>
+                        </div>
+                        {/* AI response - instant */}
+                        <div className="flex justify-start">
+                          <div className="bg-gray-100 text-gray-900 rounded-2xl px-4 py-2 max-w-xs rounded-bl-none">
+                            <p className="text-sm">Yes! We offer premium Botox treatments. Would you like to book a consultation?</p>
+                            <p className="text-xs mt-1 text-gray-500">2:34 PM ⚡ Instant</p>
+                          </div>
+                        </div>
+                        {/* User follow-up */}
+                        <div className="flex justify-end">
+                          <div className="bg-blue-500 text-white rounded-2xl px-4 py-2 max-w-xs rounded-br-none">
+                            <p className="text-sm">How much does it cost?</p>
+                            <p className="text-xs mt-1 text-blue-100">2:35 PM</p>
+                          </div>
+                        </div>
+                        {/* AI response - instant */}
+                        <div className="flex justify-start">
+                          <div className="bg-gray-100 text-gray-900 rounded-2xl px-4 py-2 max-w-xs rounded-bl-none">
+                            <p className="text-sm">Pricing starts at HK$2,500. First-time clients get 15% off! 😊</p>
+                            <p className="text-xs mt-1 text-gray-500">2:35 PM ⚡ Instant</p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex justify-end">
-                      <div className="bg-emerald-500 text-white rounded-2xl px-4 py-2 max-w-xs rounded-br-none">
-                        <div className="h-3 bg-emerald-400 rounded opacity-50 w-24"></div>
+                      <div className="px-4 py-3 bg-emerald-50 border-t border-emerald-200">
+                        <p className="text-xs text-emerald-700 font-semibold">💡 Never loses a lead to slow responses</p>
                       </div>
-                    </div>
-                  </div>
+                    </>
+                  ) : (
+                    // Without AI - Slow Response
+                    <>
+                      <div className="bg-gray-100 p-4 border-b">
+                        <div className="flex items-center justify-between">
+                          <div className="font-semibold text-gray-900 text-sm">Beauty Clinic</div>
+                          <div className="text-xs text-gray-500">⚪ Away</div>
+                        </div>
+                      </div>
+                      <div className="p-4 space-y-4">
+                        {/* User message */}
+                        <div className="flex justify-end">
+                          <div className="bg-blue-500 text-white rounded-2xl px-4 py-2 max-w-xs rounded-br-none">
+                            <p className="text-sm">Hi, do you offer Botox?</p>
+                            <p className="text-xs mt-1 text-blue-100">2:34 PM</p>
+                          </div>
+                        </div>
+
+                        {/* Long wait indicator */}
+                        <div className="text-center py-4">
+                          <div className="inline-flex items-center gap-2 bg-red-50 px-3 py-1.5 rounded-full">
+                            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                            <span className="text-xs font-semibold text-red-700">Waiting... (12+ hours)</span>
+                          </div>
+                        </div>
+
+                        {/* Delayed response */}
+                        <div className="flex justify-start">
+                          <div className="bg-gray-200 text-gray-900 rounded-2xl px-4 py-2 max-w-xs rounded-bl-none opacity-60">
+                            <p className="text-sm text-gray-600">Thanks for your inquiry. Let me check...</p>
+                            <p className="text-xs mt-1 text-gray-500">2:24 PM (next day) 😞</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="px-4 py-3 bg-red-50 border-t border-red-200">
+                        <p className="text-xs text-red-700 font-semibold">❌ Lost lead: Customer already booked elsewhere</p>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
