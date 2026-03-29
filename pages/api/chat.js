@@ -4,13 +4,18 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
+// Estimate tokens from text (rough: ~4 chars per token)
+function estimateTokens(text) {
+  return Math.ceil(text.length / 4)
+}
+
 export default async function handler(req, res) {
   // Only allow POST requests
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { message, businessName, services, businessType } = req.body
+  const { message, businessName, services, businessType, conversationHistory, tokenEstimate } = req.body
 
   // Validate inputs
   if (!message || !businessName) {
@@ -23,28 +28,74 @@ export default async function handler(req, res) {
   }
 
   try {
+    // GUARDRAIL 1: Validate token estimate on server side
+    const maxContextTokens = 2500 // Strict limit including system prompt and response
+    let contextTokens = tokenEstimate || 0
+
+    // Add estimated tokens for system prompt (~400 tokens)
+    contextTokens += 400
+
+    // Add buffer for response (~150 tokens)
+    contextTokens += 150
+
+    if (contextTokens > maxContextTokens) {
+      console.warn(`Token limit exceeded: ${contextTokens} > ${maxContextTokens}. Truncating history.`)
+      // If exceeded, only use last 3 messages
+      if (conversationHistory && conversationHistory.length > 3) {
+        conversationHistory.splice(0, conversationHistory.length - 3)
+      }
+    }
+
     // Create a system prompt that makes the AI act as a receptionist for this business
     const systemPrompt = createSystemPrompt(businessName, services, businessType)
+
+    // Build messages array from conversation history
+    const messages = [
+      {
+        role: 'system',
+        content: systemPrompt,
+      },
+    ]
+
+    // Add conversation history if provided
+    if (conversationHistory && Array.isArray(conversationHistory)) {
+      for (const msg of conversationHistory) {
+        messages.push({
+          role: msg.type === 'user' ? 'user' : 'assistant',
+          content: msg.text,
+        })
+      }
+    } else {
+      // Fallback: just the current message
+      messages.push({
+        role: 'user',
+        content: message,
+      })
+    }
+
+    // GUARDRAIL 2: Hard limit on total messages to prevent context bloat
+    if (messages.length > 15) {
+      console.warn(`Message count high: ${messages.length}. Trimming to last 7 messages + system.`)
+      const systemMsg = messages[0]
+      messages.splice(1, messages.length - 8)
+      messages.unshift(systemMsg)
+    }
 
     // Call OpenAI API
     const completion = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'system',
-          content: systemPrompt,
-        },
-        {
-          role: 'user',
-          content: message,
-        },
-      ],
+      messages: messages,
       temperature: 0.7,
       max_tokens: 150,
       top_p: 0.9,
     })
 
     const reply = completion.choices[0].message.content
+
+    // Log token usage for monitoring
+    if (completion.usage) {
+      console.log(`Token usage - Prompt: ${completion.usage.prompt_tokens}, Completion: ${completion.usage.completion_tokens}, Total: ${completion.usage.total_tokens}`)
+    }
 
     return res.status(200).json({
       success: true,
@@ -94,10 +145,18 @@ function createSystemPrompt(businessName, services, businessType) {
 - When asked about specific pricing or details you don't know, suggest booking a consultation
 - Always try to move conversations toward booking
 
+**Conversation context:**
+- You have access to the full conversation history
+- Remember what the customer asked about previously
+- Build on previous messages to provide contextual, relevant responses
+- If the customer mentions a service, reference it in follow-up responses
+- Use their implied interests to guide suggestions
+
 **Key rules:**
 - You work for ${businessName}, not a general AI assistant
 - Stay in character as their receptionist
 - Be professional but approachable
 - Encourage bookings and consultations
-- If asked about competitors or other businesses, politely redirect to ${businessName}'s services`
+- If asked about competitors or other businesses, politely redirect to ${businessName}'s services
+- Always maintain conversation flow and reference previous context`
 }

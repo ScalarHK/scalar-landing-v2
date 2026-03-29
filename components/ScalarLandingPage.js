@@ -285,6 +285,33 @@ const ChatInterface = ({ data, domain }) => {
     }
   };
 
+  // Estimate tokens (rough: ~4 chars per token)
+  const estimateTokens = (text) => Math.ceil(text.length / 4);
+
+  // Get conversation history with token limits
+  const getConversationContext = (allMessages) => {
+    const maxHistoryTokens = 2000; // Limit context to ~2000 tokens (~8000 chars)
+    const maxMessages = 10; // Never include more than last 10 messages
+
+    let contextMessages = [];
+    let totalTokens = 0;
+
+    // Work backwards from most recent message
+    for (let i = allMessages.length - 1; i >= 0 && contextMessages.length < maxMessages; i--) {
+      const msg = allMessages[i];
+      const msgTokens = estimateTokens(msg.text);
+
+      if (totalTokens + msgTokens > maxHistoryTokens) {
+        break; // Stop if would exceed token limit
+      }
+
+      contextMessages.unshift(msg);
+      totalTokens += msgTokens;
+    }
+
+    return { messages: contextMessages, tokenEstimate: totalTokens };
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
@@ -299,15 +326,25 @@ const ChatInterface = ({ data, domain }) => {
     setIsTyping(true);
 
     try {
-      // Call the OpenAI chat API
+      // Get conversation context with token limits
+      const { messages: contextMessages, tokenEstimate } = getConversationContext([...messages, userMessage]);
+
+      // Warn if getting close to token limit
+      if (tokenEstimate > 1800) {
+        console.warn(`Token usage high: ~${tokenEstimate} tokens. Conversation will be reset if it exceeds limits.`);
+      }
+
+      // Call the OpenAI chat API with full conversation context
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMessage.text,
+          conversationHistory: contextMessages, // Include full context
           businessName: data?.businessName || 'Our Business',
           services: data?.services || [],
           businessType: data?.type || 'service-business',
+          tokenEstimate: tokenEstimate, // Pass token estimate for server-side validation
         }),
       });
 
