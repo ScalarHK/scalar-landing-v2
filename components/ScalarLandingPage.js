@@ -222,10 +222,14 @@ const ChatInterface = ({ data, domain }) => {
   const [messages, setMessages] = useState(data.sampleChat);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const messagesContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Scroll within the container only, not the entire page
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   };
 
   useEffect(() => {
@@ -242,15 +246,20 @@ const ChatInterface = ({ data, domain }) => {
     setIsTyping(true);
 
     try {
+      // Get conversation context with token limits
+      const { messages: contextMessages, tokenEstimate } = getConversationContext([...messages, userMessage]);
+
       // Call the OpenAI chat API with the quick action
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: action,
+          conversationHistory: contextMessages,
           businessName: data?.businessName || 'Our Business',
           services: data?.services || [],
-          businessType: 'service-business',
+          businessType: data?.type || 'service-business',
+          tokenEstimate: tokenEstimate,
         }),
       });
 
@@ -396,7 +405,7 @@ const ChatInterface = ({ data, domain }) => {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
         {messages.map((msg, idx) => (
           <div
             key={idx}
