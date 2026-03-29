@@ -511,21 +511,6 @@ const ChatInterface = ({ data, domain }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick Actions */}
-      <div className="border-t border-gray-200 bg-white p-3 max-h-24 overflow-x-auto">
-        <div className="flex gap-2 flex-nowrap pb-1">
-          {data.quickActions.slice(0, 4).map((action, idx) => (
-            <button
-              key={idx}
-              onClick={() => handleQuickAction(action)}
-              className="flex-shrink-0 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full border border-emerald-200 hover:bg-emerald-100 transition-colors whitespace-nowrap"
-            >
-              {action}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Input */}
       <form onSubmit={handleSendMessage} className="border-t border-gray-200 bg-white p-3 flex gap-2">
         <input
