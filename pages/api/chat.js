@@ -15,7 +15,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { message, businessName, services, businessType, conversationHistory, tokenEstimate, openingHours, language } = req.body
+  const { message, businessName, services, businessType, conversationHistory, tokenEstimate, openingHours, language, knowledgeBase } = req.body
 
   // Validate inputs
   if (!message || !businessName) {
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
     }
 
     // Create a system prompt that makes the AI act as a receptionist for this business
-    const systemPrompt = createSystemPrompt(businessName, services, businessType, openingHours, language)
+    const systemPrompt = createSystemPrompt(businessName, services, businessType, openingHours, language, knowledgeBase)
 
     // Build messages array from conversation history
     const messages = [
@@ -114,10 +114,15 @@ export default async function handler(req, res) {
 }
 
 // Create a contextual system prompt for the business receptionist
-function createSystemPrompt(businessName, services, businessType, openingHours, language = 'en') {
+function createSystemPrompt(businessName, services, businessType, openingHours, language = 'en', knowledgeBase = '') {
   const serviceList = services && services.length > 0
     ? services.join(', ')
     : (language === 'en' ? 'various professional services' : (language === 'zh' ? '各種專業服務' : '各种专业服务'))
+
+  // Include website knowledge base if available (truncate to avoid token bloat)
+  const kbSection = knowledgeBase && knowledgeBase.length > 100
+    ? `\n\n**Website Information Reference:**\n${knowledgeBase.substring(0, 2000)}\n(Use this information to answer questions about the business accurately.)`
+    : ''
 
   const typeDescriptions = {
     en: {
@@ -173,7 +178,7 @@ function createSystemPrompt(businessName, services, businessType, openingHours, 
 - Be professional but approachable
 - Encourage bookings and consultations
 - If asked about competitors or other businesses, politely redirect to ${businessName}'s services
-- Always maintain conversation flow and reference previous context`,
+- Always maintain conversation flow and reference previous context${kbSection}`,
 
     zh: `你是 ${businessName} 的專業、友善接待員，一間${typeDescriptions.zh[businessType] || typeDescriptions.zh['service-business']}。
 
@@ -204,7 +209,7 @@ function createSystemPrompt(businessName, services, businessType, openingHours, 
 - 專業但易於接近
 - 鼓勵預訂和諮詢
 - 如被詢問競爭對手或其他業務，禮貌地將其重定向到 ${businessName} 的服務
-- 始終保持對話流程並參考先前的背景`,
+- 始終保持對話流程並參考先前的背景${kbSection}`,
 
     zh_simplified: `你是 ${businessName} 的专业、友善接待员，一间${typeDescriptions.zh_simplified[businessType] || typeDescriptions.zh_simplified['service-business']}。
 
@@ -235,7 +240,7 @@ function createSystemPrompt(businessName, services, businessType, openingHours, 
 - 专业但易于接近
 - 鼓励预订和咨询
 - 如被询问竞争对手或其他业务，礼貌地将其重定向到 ${businessName} 的服务
-- 始终保持对话流程并参考先前的背景`,
+- 始终保持对话流程并参考先前的背景${kbSection}`,
   }
 
   return prompts[language] || prompts.en

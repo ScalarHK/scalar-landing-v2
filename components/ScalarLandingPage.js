@@ -333,6 +333,7 @@ const ChatInterface = ({ data, domain, language }) => {
           openingHours: data?.openingHours || null,
           tokenEstimate: tokenEstimate,
           language: language,
+          knowledgeBase: data?.knowledgeBase || '',
         }),
       });
 
@@ -429,6 +430,7 @@ const ChatInterface = ({ data, domain, language }) => {
           openingHours: data?.openingHours || null,
           tokenEstimate: tokenEstimate, // Pass token estimate for server-side validation
           language: language,
+          knowledgeBase: data?.knowledgeBase || '',
         }),
       });
 
@@ -606,6 +608,7 @@ const InstagramChatInterface = ({ data, domain, language }) => {
           openingHours: data?.openingHours || null,
           tokenEstimate: tokenEstimate,
           language: language,
+          knowledgeBase: data?.knowledgeBase || '',
         }),
       });
 
