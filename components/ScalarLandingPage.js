@@ -743,6 +743,130 @@ const BusinessProfileCard = ({ data, domain }) => {
   );
 };
 
+// Translations
+const translations = {
+  en: {
+    turnYour: 'Turn Your',
+    intoAI: 'Into a 24/7 AI Receptionist',
+    neverMiss: 'Never miss a lead again. Instantly preview how your business would handle inquiries with AI-powered WhatsApp, Instagram, and web chat.',
+    seeIn30: '✓ See it in 30 seconds',
+    enterDomain: 'Enter your domain and we\'ll generate a custom demo instantly',
+    placeholder: 'e.g., yourcompany.com or business.hk',
+    preview: 'Preview',
+    anyBusiness: 'Works with any business type • No coding required',
+    responses: 'Instant responses • 24/7 lead capture',
+    channels: 'WhatsApp • Instagram • Website • Phone',
+    withoutAI: '❌ Without AI',
+    withAI: '✅ With AI',
+    liveDemo: 'Live Demo',
+    whatsapp: '💬 WhatsApp',
+    instagram: '📱 Instagram',
+    tryAnother: 'Try Another Domain',
+    success: 'Your AI Receptionist is ready!',
+    analyzed: 'We\'ve analyzed',
+    generated: 'and generated a custom chatbot. Try asking questions below.',
+    whatYouGet: 'What You\'ll Get',
+    faq: 'Common Questions',
+    ready: 'Ready to go live?',
+    aiReceptionist: 'Get your AI receptionist live in 48 hours. No setup headaches.',
+    bookDemo: 'Book a Demo Call',
+    seePricing: 'See Pricing',
+    setupHours: 'Setup in 48 hours',
+    whatsappInsta: 'WhatsApp + Instagram ready',
+    support24: '24/7 customer support',
+    howLong: 'How long does setup take?',
+    hours48: '48 hours from demo booking to launch.',
+    customize: 'Can I customize the responses?',
+    customizeAns: 'Yes, fully customizable to match your brand and services.',
+    questions: 'What if I have questions after launch?',
+    questionsAns: 'Dedicated support team available 24/7 for all clients.',
+    stopLosing: 'Stop losing leads to missed calls and slow responses.',
+    aiReady: 'Your AI receptionist is ready. Book a call with our team to go live this week.',
+    scheduleDemo: 'Schedule Your Demo Call',
+    channels_en: ['Website', 'WhatsApp', 'Instagram', 'Phone'],
+  },
+  zh: {
+    turnYour: '將你的',
+    intoAI: '轉變為 24/7 AI 接待員',
+    neverMiss: '永遠不會錯過潛在客戶。立即預覽您的業務如何透過 AI 驅動的 WhatsApp、Instagram 和網頁聊天來處理詢問。',
+    seeIn30: '✓ 30 秒內查看',
+    enterDomain: '輸入您的域名，我們將立即為您生成自訂示演',
+    placeholder: '例如：yourcompany.com 或 business.hk',
+    preview: '預覽',
+    anyBusiness: '適用於任何業務類型 • 無需編碼',
+    responses: '即時回應 • 全天候 24/7 潛在客戶捕捉',
+    channels: 'WhatsApp • Instagram • 網站 • 電話',
+    withoutAI: '❌ 無 AI',
+    withAI: '✅ 有 AI',
+    liveDemo: '即時示演',
+    whatsapp: '💬 WhatsApp',
+    instagram: '📱 Instagram',
+    tryAnother: '嘗試其他域名',
+    success: '您的 AI 接待員已準備就緒！',
+    analyzed: '我們已分析',
+    generated: '並生成了自訂聊天機器人。請嘗試在下方提問。',
+    whatYouGet: '您將獲得什麼',
+    faq: '常見問題',
+    ready: '準備上線了嗎？',
+    aiReceptionist: '在 48 小時內啟動您的 AI 接待員。無需設置煩惱。',
+    bookDemo: '預訂演示通話',
+    seePricing: '查看定價',
+    setupHours: '48 小時內完成設置',
+    whatsappInsta: 'WhatsApp + Instagram 已準備就緒',
+    support24: '全天候 24/7 客戶支持',
+    howLong: '設置需要多長時間？',
+    hours48: '從演示預訂到啟動 48 小時。',
+    customize: '我可以自訂回應嗎？',
+    customizeAns: '是的，完全可自訂以匹配您的品牌和服務。',
+    questions: '上線後我有疑問怎麼辦？',
+    questionsAns: '為所有客戶提供全天候 24/7 專屬支持團隊。',
+    stopLosing: '停止因未接來電和緩慢回應而失去潛在客戶。',
+    aiReady: '您的 AI 接待員已準備就緒。致電我們的團隊，本週上線。',
+    scheduleDemo: '預約演示通話',
+    channels_en: ['網站', 'WhatsApp', 'Instagram', '電話'],
+  },
+  zh_simplified: {
+    turnYour: '将你的',
+    intoAI: '转变为 24/7 AI 接待员',
+    neverMiss: '永远不会错过潜在客户。立即预览您的业务如何通过 AI 驱动的 WhatsApp、Instagram 和网页聊天来处理询问。',
+    seeIn30: '✓ 30 秒内查看',
+    enterDomain: '输入您的域名，我们将立即为您生成自定义演示',
+    placeholder: '例如：yourcompany.com 或 business.hk',
+    preview: '预览',
+    anyBusiness: '适用于任何业务类型 • 无需编码',
+    responses: '即时回应 • 全天候 24/7 潜在客户捕获',
+    channels: 'WhatsApp • Instagram • 网站 • 电话',
+    withoutAI: '❌ 无 AI',
+    withAI: '✅ 有 AI',
+    liveDemo: '即时演示',
+    whatsapp: '💬 WhatsApp',
+    instagram: '📱 Instagram',
+    tryAnother: '尝试其他域名',
+    success: '您的 AI 接待员已准备就绪！',
+    analyzed: '我们已分析',
+    generated: '并生成了自定义聊天机器人。请尝试在下方提问。',
+    whatYouGet: '您将获得什么',
+    faq: '常见问题',
+    ready: '准备上线了吗？',
+    aiReceptionist: '在 48 小时内启动您的 AI 接待员。无需设置烦恼。',
+    bookDemo: '预订演示通话',
+    seePricing: '查看定价',
+    setupHours: '48 小时内完成设置',
+    whatsappInsta: 'WhatsApp + Instagram 已准备就绪',
+    support24: '全天候 24/7 客户支持',
+    howLong: '设置需要多长时间？',
+    hours48: '从演示预订到启动 48 小时。',
+    customize: '我可以自定义回应吗？',
+    customizeAns: '是的，完全可自定义以匹配您的品牌和服务。',
+    questions: '上线后我有疑问怎么办？',
+    questionsAns: '为所有客户提供全天候 24/7 专属支持团队。',
+    stopLosing: '停止因未接来电和缓慢回应而失去潜在客户。',
+    aiReady: '您的 AI 接待员已准备就绪。致电我们的团队，本周上线。',
+    scheduleDemo: '预约演示通话',
+    channels_en: ['网站', 'WhatsApp', 'Instagram', '电话'],
+  },
+};
+
 // Main Landing Page Component
 export default function ScalarLandingPage() {
   const [domain, setDomain] = useState('');
@@ -754,8 +878,10 @@ export default function ScalarLandingPage() {
   const [chatSkin, setChatSkin] = useState('whatsapp'); // whatsapp or instagram
   const [showAIDemo, setShowAIDemo] = useState(true); // true for AI demo, false for without AI
   const [currentChannelWord, setCurrentChannelWord] = useState(0); // 0: Website, 1: WhatsApp, 2: Instagram, 3: Phone
+  const [language, setLanguage] = useState('en'); // en, zh, zh_simplified
 
-  const channels = ['Website', 'WhatsApp', 'Instagram', 'Phone'];
+  const t = translations[language];
+  const channels = t.channels_en;
 
   const channelColors = {
     0: 'from-blue-400 to-blue-600', // Website - blue
@@ -916,7 +1042,31 @@ export default function ScalarLandingPage() {
             <div className="font-bold text-xl tracking-tight">
               <span className="text-emerald-400">Scalar</span>
             </div>
-            <div className="text-sm text-gray-400">AI Receptionist for Local Business</div>
+            <div className="flex items-center gap-6">
+              <div className="text-sm text-gray-400">AI Receptionist for Local Business</div>
+              <div className="flex gap-2 text-sm text-gray-400">
+                <button
+                  onClick={() => setLanguage('en')}
+                  className={`px-2 py-1 rounded transition-colors ${language === 'en' ? 'text-emerald-400 bg-emerald-400/10' : 'hover:text-gray-300'}`}
+                >
+                  EN
+                </button>
+                <span className="text-gray-600">|</span>
+                <button
+                  onClick={() => setLanguage('zh')}
+                  className={`px-2 py-1 rounded transition-colors ${language === 'zh' ? 'text-emerald-400 bg-emerald-400/10' : 'hover:text-gray-300'}`}
+                >
+                  繁
+                </button>
+                <span className="text-gray-600">|</span>
+                <button
+                  onClick={() => setLanguage('zh_simplified')}
+                  className={`px-2 py-1 rounded transition-colors ${language === 'zh_simplified' ? 'text-emerald-400 bg-emerald-400/10' : 'hover:text-gray-300'}`}
+                >
+                  简
+                </button>
+              </div>
+            </div>
           </div>
         </nav>
 
@@ -927,27 +1077,27 @@ export default function ScalarLandingPage() {
             <div className="space-y-8">
               <div className="space-y-4">
                 <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight space-y-2">
-                  <div>Turn Your</div>
+                  <div>{t.turnYour}</div>
                   <div className={`bg-gradient-to-r ${channelColors[currentChannelWord]} bg-clip-text text-transparent transition-all duration-500`}>
                     {channels[currentChannelWord]}
                   </div>
                   <div>
-                    Into a{' '}
+                    {language === 'en' ? 'Into a' : ''}{' '}
                     <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
-                      24/7 AI Receptionist
+                      {t.intoAI}
                     </span>
                   </div>
                 </h1>
                 <p className="text-xl text-gray-300 leading-relaxed">
-                  Never miss a lead again. Instantly preview how your business would handle inquiries with AI-powered WhatsApp, Instagram, and web chat.
+                  {t.neverMiss}
                 </p>
               </div>
 
               <div className="space-y-2">
                 <p className="text-sm font-semibold text-emerald-400 uppercase tracking-wide">
-                  ✓ See it in 30 seconds
+                  {t.seeIn30}
                 </p>
-                <p className="text-gray-400">Enter your domain and we'll generate a custom demo instantly</p>
+                <p className="text-gray-400">{t.enterDomain}</p>
               </div>
 
               {/* Domain Input Form */}
@@ -960,14 +1110,14 @@ export default function ScalarLandingPage() {
                       setDomain(e.target.value);
                       setError('');
                     }}
-                    placeholder="e.g., yourcompany.com or business.hk"
+                    placeholder={t.placeholder}
                     className="w-full px-6 py-4 bg-white/10 border border-emerald-500/30 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent backdrop-blur-sm text-lg"
                   />
                   <button
                     type="submit"
                     className="absolute right-2 top-1/2 -translate-y-1/2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-6 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all hover:shadow-lg hover:shadow-emerald-500/50"
                   >
-                    Preview <ArrowRight size={18} />
+                    {t.preview} <ArrowRight size={18} />
                   </button>
                 </div>
                 {error && <p className="text-red-400 text-sm">{error}</p>}
@@ -977,15 +1127,15 @@ export default function ScalarLandingPage() {
               <div className="space-y-3 pt-4">
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="text-emerald-400 flex-shrink-0 mt-1" size={20} />
-                  <span className="text-gray-300">Works with any business type • No coding required</span>
+                  <span className="text-gray-300">{t.anyBusiness}</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <Clock className="text-emerald-400 flex-shrink-0 mt-1" size={20} />
-                  <span className="text-gray-300">Instant responses • 24/7 lead capture</span>
+                  <span className="text-gray-300">{t.responses}</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <MessageCircle className="text-emerald-400 flex-shrink-0 mt-1" size={20} />
-                  <span className="text-gray-300">WhatsApp • Instagram • Website • Phone</span>
+                  <span className="text-gray-300">{t.channels}</span>
                 </div>
               </div>
             </div>
@@ -1005,7 +1155,7 @@ export default function ScalarLandingPage() {
                         : 'bg-gray-100 text-gray-600'
                     }`}
                   >
-                    ❌ Without AI
+                    {t.withoutAI}
                   </button>
                   <button
                     onClick={() => setShowAIDemo(!showAIDemo)}
@@ -1015,7 +1165,7 @@ export default function ScalarLandingPage() {
                         : 'bg-gray-100 text-gray-600'
                     }`}
                   >
-                    ✅ With AI
+                    {t.withAI}
                   </button>
                 </div>
 
@@ -1165,7 +1315,7 @@ export default function ScalarLandingPage() {
               onClick={handleReset}
               className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors text-sm"
             >
-              Try Another Domain
+              {t.tryAnother}
             </button>
           </div>
         </nav>
@@ -1175,9 +1325,9 @@ export default function ScalarLandingPage() {
           <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-6 flex items-start gap-4">
             <CheckCircle2 className="text-emerald-600 flex-shrink-0 mt-1" size={24} />
             <div>
-              <h3 className="font-semibold text-gray-900">Your AI Receptionist is ready!</h3>
+              <h3 className="font-semibold text-gray-900">{t.success}</h3>
               <p className="text-gray-700 text-sm mt-1">
-                We've analyzed <span className="font-medium text-emerald-600">{domain}</span> and generated a custom chatbot. Try asking questions below.
+                {t.analyzed} <span className="font-medium text-emerald-600">{domain}</span> {t.generated}
               </p>
             </div>
           </div>
@@ -1187,7 +1337,7 @@ export default function ScalarLandingPage() {
             {/* Chat */}
             <div className="lg:col-span-2 flex flex-col">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">Live Demo</h2>
+                <h2 className="text-lg font-semibold text-gray-900">{t.liveDemo}</h2>
                 <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
                   <button
                     onClick={() => setChatSkin('whatsapp')}
@@ -1197,7 +1347,7 @@ export default function ScalarLandingPage() {
                         : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
-                    💬 WhatsApp
+                    {t.whatsapp}
                   </button>
                   <button
                     onClick={() => setChatSkin('instagram')}
@@ -1207,7 +1357,7 @@ export default function ScalarLandingPage() {
                         : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
-                    📱 Instagram
+                    {t.instagram}
                   </button>
                 </div>
               </div>
@@ -1232,32 +1382,32 @@ export default function ScalarLandingPage() {
 
               {/* CTA Section */}
               <div className="bg-gradient-to-br from-emerald-500 to-teal-500 rounded-2xl p-6 text-white space-y-4 lg:sticky lg:top-24">
-                <h3 className="text-xl font-bold">Ready to go live?</h3>
+                <h3 className="text-xl font-bold">{t.ready}</h3>
                 <p className="text-sm text-emerald-50">
-                  Get your AI receptionist live in 48 hours. No setup headaches.
+                  {t.aiReceptionist}
                 </p>
 
                 <div className="space-y-2">
                   <button className="w-full bg-white text-emerald-600 font-bold py-3 rounded-xl hover:bg-gray-50 transition-colors">
-                    Book a Demo Call
+                    {t.bookDemo}
                   </button>
                   <button className="w-full border-2 border-white text-white font-semibold py-2.5 rounded-xl hover:bg-white/10 transition-colors text-sm">
-                    See Pricing
+                    {t.seePricing}
                   </button>
                 </div>
 
                 <div className="pt-3 border-t border-emerald-400/50 space-y-2 text-xs text-emerald-50">
                   <div className="flex items-center gap-2">
                     <Zap size={14} />
-                    <span>Setup in 48 hours</span>
+                    <span>{t.setupHours}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <MessageCircle size={14} />
-                    <span>WhatsApp + Instagram ready</span>
+                    <span>{t.whatsappInsta}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Clock size={14} />
-                    <span>24/7 customer support</span>
+                    <span>{t.support24}</span>
                   </div>
                 </div>
               </div>
@@ -1266,7 +1416,7 @@ export default function ScalarLandingPage() {
 
           {/* Additional Context */}
           <div className="bg-white rounded-2xl p-8 border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">What You'll Get</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">{t.whatYouGet}</h3>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
                 { icon: '💬', label: 'WhatsApp Bot', desc: 'Instant replies 24/7' },
@@ -1285,12 +1435,12 @@ export default function ScalarLandingPage() {
 
           {/* FAQ Placeholder */}
           <div className="bg-white rounded-2xl p-8 border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6">Common Questions</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">{t.faq}</h3>
             <div className="space-y-4">
               {[
-                { q: 'How long does setup take?', a: '48 hours from demo booking to launch.' },
-                { q: 'Can I customize the responses?', a: 'Yes, fully customizable to match your brand and services.' },
-                { q: 'What if I have questions after launch?', a: 'Dedicated support team available 24/7 for all clients.' },
+                { q: t.howLong, a: t.hours48 },
+                { q: t.customize, a: t.customizeAns },
+                { q: t.questions, a: t.questionsAns },
               ].map((faq, idx) => (
                 <div key={idx} className="border-b border-gray-200 pb-4 last:border-0">
                   <p className="font-semibold text-gray-900 text-sm mb-2">{faq.q}</p>
@@ -1305,13 +1455,13 @@ export default function ScalarLandingPage() {
         <div className="border-t border-gray-200 bg-white mt-12">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center space-y-4">
             <h2 className="text-2xl font-bold text-gray-900">
-              Stop losing leads to missed calls and slow responses.
+              {t.stopLosing}
             </h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              Your AI receptionist is ready. Book a call with our team to go live this week.
+              {t.aiReady}
             </p>
             <button className="mt-6 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold py-3 px-8 rounded-xl transition-all hover:shadow-lg hover:shadow-emerald-500/50">
-              Schedule Your Demo Call
+              {t.scheduleDemo}
             </button>
           </div>
         </div>
