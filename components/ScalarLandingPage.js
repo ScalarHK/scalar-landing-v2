@@ -305,9 +305,9 @@ const ChatInterface = ({ data, domain }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMessage.text,
-          businessName: businessData?.businessName || 'Our Business',
-          services: businessData?.services || [],
-          businessType: domainParsed?.type || 'service-business',
+          businessName: data?.businessName || 'Our Business',
+          services: data?.services || [],
+          businessType: data?.type || 'service-business',
         }),
       });
 
@@ -523,6 +523,7 @@ export default function ScalarLandingPage() {
           sampleChat: generateSampleChat(result.data.businessName, result.data.services),
           profileSummary: result.data.profileSummary || `Professional ${parsed.type.replace(/-/g, ' ')} service`,
           icon: parsed.icon,
+          type: parsed.type,
         };
 
         setBusinessData(businessData);
@@ -531,7 +532,7 @@ export default function ScalarLandingPage() {
         console.log('Scraping failed, using mock data');
         const parsed = parseDomain(domain);
         setDomainParsed(parsed);
-        const mockData = generateMockData(domain, parsed.type);
+        const mockData = { ...generateMockData(domain, parsed.type), type: parsed.type };
         setBusinessData(mockData);
       }
 
@@ -544,7 +545,7 @@ export default function ScalarLandingPage() {
       // Fallback to mock data on error
       const parsed = parseDomain(domain);
       setDomainParsed(parsed);
-      const mockData = generateMockData(domain, parsed.type);
+      const mockData = { ...generateMockData(domain, parsed.type), type: parsed.type };
       setBusinessData(mockData);
 
       clearInterval(interval);
