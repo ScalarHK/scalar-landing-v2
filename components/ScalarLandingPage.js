@@ -735,7 +735,7 @@ const BusinessProfileCard = ({ data, domain }) => {
           <div className="text-4xl">{data.icon || '🏢'}</div>
         </div>
 
-        <p className="text-gray-700 text-sm leading-relaxed">{data.profileSummary}</p>
+        <p className="text-gray-700 text-sm leading-relaxed line-clamp-3">{data.profileSummary}</p>
 
         <div>
           <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Services</p>

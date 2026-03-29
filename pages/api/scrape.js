@@ -287,9 +287,15 @@ async function scrapeDomain(domain) {
       services = extractServices(allServiceText)
     }
 
-    // Create profile summary
-    const profileSummary = metaDescription.substring(0, 150) ||
-                          `Professional ${businessType.replace(/-/g, ' ')} service`
+    // Create profile summary - truncate at word boundary to avoid mid-word cutoff
+    let profileSummary = metaDescription
+    if (profileSummary && profileSummary.length > 150) {
+      // Find last space before 150 chars to avoid cutting mid-word
+      const truncated = profileSummary.substring(0, 150)
+      const lastSpace = truncated.lastIndexOf(' ')
+      profileSummary = lastSpace > 100 ? truncated.substring(0, lastSpace) + '...' : truncated + '...'
+    }
+    profileSummary = profileSummary || `Professional ${businessType.replace(/-/g, ' ')} service`
 
     return {
       success: true,
