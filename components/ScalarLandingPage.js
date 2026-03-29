@@ -784,6 +784,25 @@ const translations = {
     aiReady: 'Your AI receptionist is ready. Book a call with our team to go live this week.',
     scheduleDemo: 'Schedule Your Demo Call',
     channels_en: ['Website', 'WhatsApp', 'Instagram', 'Phone'],
+    // Demo section
+    demoWithoutAI_header: 'Business',
+    demoWithoutAI_away: '⚪ Away',
+    demoWithoutAI_msg1: 'Hi, do you have availability?',
+    demoWithoutAI_time1: '2:34 PM',
+    demoWithoutAI_waiting: 'Waiting... (6+ hours)',
+    demoWithoutAI_response: 'Let me check our schedule...',
+    demoWithoutAI_time2: '8:45 PM (same day)',
+    demoWithoutAI_footer: '❌ Potential customer moved on',
+    demoWithAI_header: 'Business',
+    demoWithAI_active: 'Active now ✓',
+    demoWithAI_msg1: 'Hi, do you have availability?',
+    demoWithAI_time1: '2:34 PM',
+    demoWithAI_resp1: 'Yes! Our team is ready to help. When would you like to book?',
+    demoWithAI_instant: '⚡ Instant',
+    demoWithAI_msg2: 'Tomorrow at 3pm?',
+    demoWithAI_time2: '2:35 PM',
+    demoWithAI_resp2: 'Perfect! I\'ve booked you in. See you tomorrow! 🎯',
+    demoWithAI_footer: '💡 Lead captured & booked instantly',
   },
   zh: {
     turnYour: '將你的',
@@ -824,6 +843,25 @@ const translations = {
     aiReady: '您的 AI 接待員已準備就緒。致電我們的團隊，本週上線。',
     scheduleDemo: '預約演示通話',
     channels_en: ['網站', 'WhatsApp', 'Instagram', '電話'],
+    // Demo section
+    demoWithoutAI_header: '業務',
+    demoWithoutAI_away: '⚪ 離線',
+    demoWithoutAI_msg1: '你好，你們有檔期嗎？',
+    demoWithoutAI_time1: '下午 2:34',
+    demoWithoutAI_waiting: '等待中... (6+ 小時)',
+    demoWithoutAI_response: '讓我檢查一下我們的日程...',
+    demoWithoutAI_time2: '晚上 8:45（同日）',
+    demoWithoutAI_footer: '❌ 潛在客戶已轉身離去',
+    demoWithAI_header: '業務',
+    demoWithAI_active: '在線 ✓',
+    demoWithAI_msg1: '你好，你們有檔期嗎？',
+    demoWithAI_time1: '下午 2:34',
+    demoWithAI_resp1: '有的！我們的團隊已準備好幫助您。您想什麼時候預訂？',
+    demoWithAI_instant: '⚡ 即時',
+    demoWithAI_msg2: '明天下午3點？',
+    demoWithAI_time2: '下午 2:35',
+    demoWithAI_resp2: '完美！我已為您預訂。明天見！ 🎯',
+    demoWithAI_footer: '💡 潛在客戶已捕捉並立即預訂',
   },
   zh_simplified: {
     turnYour: '将你的',
@@ -864,6 +902,25 @@ const translations = {
     aiReady: '您的 AI 接待员已准备就绪。致电我们的团队，本周上线。',
     scheduleDemo: '预约演示通话',
     channels_en: ['网站', 'WhatsApp', 'Instagram', '电话'],
+    // Demo section
+    demoWithoutAI_header: '业务',
+    demoWithoutAI_away: '⚪ 离线',
+    demoWithoutAI_msg1: '你好，你们有档期吗？',
+    demoWithoutAI_time1: '下午 2:34',
+    demoWithoutAI_waiting: '等待中... (6+ 小时)',
+    demoWithoutAI_response: '让我检查一下我们的日程...',
+    demoWithoutAI_time2: '晚上 8:45（同日）',
+    demoWithoutAI_footer: '❌ 潜在客户已转身离去',
+    demoWithAI_header: '业务',
+    demoWithAI_active: '在线 ✓',
+    demoWithAI_msg1: '你好，你们有档期吗？',
+    demoWithAI_time1: '下午 2:34',
+    demoWithAI_resp1: '有的！我们的团队已准备好帮助您。您想什么时候预订？',
+    demoWithAI_instant: '⚡ 即时',
+    demoWithAI_msg2: '明天下午3点？',
+    demoWithAI_time2: '下午 2:35',
+    demoWithAI_resp2: '完美！我已为您预订。明天见！ 🎯',
+    demoWithAI_footer: '💡 潜在客户已捕获并立即预订',
   },
 };
 
@@ -904,7 +961,12 @@ export default function ScalarLandingPage() {
     e.preventDefault();
 
     if (!domain.trim()) {
-      setError('Please enter a domain');
+      const errorMessages = {
+        en: 'Please enter a domain',
+        zh: '請輸入您的域名',
+        zh_simplified: '请输入您的域名',
+      };
+      setError(errorMessages[language] || errorMessages.en);
       return;
     }
 
@@ -1175,42 +1237,42 @@ export default function ScalarLandingPage() {
                     <>
                       <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 border-b">
                         <div className="flex items-center justify-between">
-                          <div className="font-semibold text-gray-900 text-sm">Business</div>
-                          <div className="text-xs text-gray-500">Active now ✓</div>
+                          <div className="font-semibold text-gray-900 text-sm">{t.demoWithAI_header}</div>
+                          <div className="text-xs text-gray-500">{t.demoWithAI_active}</div>
                         </div>
                       </div>
                       <div className="p-4 space-y-4">
                         {/* User message */}
                         <div className="flex justify-end">
                           <div className="bg-blue-500 text-white rounded-2xl px-4 py-2 max-w-xs rounded-br-none">
-                            <p className="text-sm">Hi, do you have availability?</p>
-                            <p className="text-xs mt-1 text-blue-100">2:34 PM</p>
+                            <p className="text-sm">{t.demoWithAI_msg1}</p>
+                            <p className="text-xs mt-1 text-blue-100">{t.demoWithAI_time1}</p>
                           </div>
                         </div>
                         {/* AI response - instant */}
                         <div className="flex justify-start">
                           <div className="bg-gray-100 text-gray-900 rounded-2xl px-4 py-2 max-w-xs rounded-bl-none">
-                            <p className="text-sm">Yes! Our team is ready to help. When would you like to book?</p>
-                            <p className="text-xs mt-1 text-gray-500">2:34 PM ⚡ Instant</p>
+                            <p className="text-sm">{t.demoWithAI_resp1}</p>
+                            <p className="text-xs mt-1 text-gray-500">2:34 PM {t.demoWithAI_instant}</p>
                           </div>
                         </div>
                         {/* User follow-up */}
                         <div className="flex justify-end">
                           <div className="bg-blue-500 text-white rounded-2xl px-4 py-2 max-w-xs rounded-br-none">
-                            <p className="text-sm">Tomorrow at 3pm?</p>
-                            <p className="text-xs mt-1 text-blue-100">2:35 PM</p>
+                            <p className="text-sm">{t.demoWithAI_msg2}</p>
+                            <p className="text-xs mt-1 text-blue-100">{t.demoWithAI_time2}</p>
                           </div>
                         </div>
                         {/* AI response - instant */}
                         <div className="flex justify-start">
                           <div className="bg-gray-100 text-gray-900 rounded-2xl px-4 py-2 max-w-xs rounded-bl-none">
-                            <p className="text-sm">Perfect! I've booked you in. See you tomorrow! 🎯</p>
-                            <p className="text-xs mt-1 text-gray-500">2:35 PM ⚡ Instant</p>
+                            <p className="text-sm">{t.demoWithAI_resp2}</p>
+                            <p className="text-xs mt-1 text-gray-500">2:35 PM {t.demoWithAI_instant}</p>
                           </div>
                         </div>
                       </div>
                       <div className="px-4 py-3 bg-emerald-50 border-t border-emerald-200">
-                        <p className="text-xs text-emerald-700 font-semibold">💡 Lead captured & booked instantly</p>
+                        <p className="text-xs text-emerald-700 font-semibold">{t.demoWithAI_footer}</p>
                       </div>
                     </>
                   ) : (
@@ -1218,16 +1280,16 @@ export default function ScalarLandingPage() {
                     <>
                       <div className="bg-gray-100 p-4 border-b">
                         <div className="flex items-center justify-between">
-                          <div className="font-semibold text-gray-900 text-sm">Business</div>
-                          <div className="text-xs text-gray-500">⚪ Away</div>
+                          <div className="font-semibold text-gray-900 text-sm">{t.demoWithoutAI_header}</div>
+                          <div className="text-xs text-gray-500">{t.demoWithoutAI_away}</div>
                         </div>
                       </div>
                       <div className="p-4 space-y-4">
                         {/* User message */}
                         <div className="flex justify-end">
                           <div className="bg-blue-500 text-white rounded-2xl px-4 py-2 max-w-xs rounded-br-none">
-                            <p className="text-sm">Hi, do you have availability?</p>
-                            <p className="text-xs mt-1 text-blue-100">2:34 PM</p>
+                            <p className="text-sm">{t.demoWithoutAI_msg1}</p>
+                            <p className="text-xs mt-1 text-blue-100">{t.demoWithoutAI_time1}</p>
                           </div>
                         </div>
 
@@ -1235,20 +1297,20 @@ export default function ScalarLandingPage() {
                         <div className="text-center py-4">
                           <div className="inline-flex items-center gap-2 bg-red-50 px-3 py-1.5 rounded-full">
                             <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                            <span className="text-xs font-semibold text-red-700">Waiting... (6+ hours)</span>
+                            <span className="text-xs font-semibold text-red-700">{t.demoWithoutAI_waiting}</span>
                           </div>
                         </div>
 
                         {/* Delayed response */}
                         <div className="flex justify-start">
                           <div className="bg-gray-200 text-gray-900 rounded-2xl px-4 py-2 max-w-xs rounded-bl-none opacity-60">
-                            <p className="text-sm text-gray-600">Let me check our schedule...</p>
-                            <p className="text-xs mt-1 text-gray-500">8:45 PM (same day) 😞</p>
+                            <p className="text-sm text-gray-600">{t.demoWithoutAI_response}</p>
+                            <p className="text-xs mt-1 text-gray-500">{t.demoWithoutAI_time2} 😞</p>
                           </div>
                         </div>
                       </div>
                       <div className="px-4 py-3 bg-red-50 border-t border-red-200">
-                        <p className="text-xs text-red-700 font-semibold">❌ Potential customer moved on</p>
+                        <p className="text-xs text-red-700 font-semibold">{t.demoWithoutAI_footer}</p>
                       </div>
                     </>
                   )}
