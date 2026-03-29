@@ -41,6 +41,55 @@ function extractServices(text) {
     /package(?:s)?[:\s]*([^.]+)/gi,
   ]
 
+  // Filter out common marketing phrases and fillers
+  const blacklist = [
+    'that suits your exact needs',
+    'that suits your needs',
+    'your exact needs',
+    'exact needs',
+    'that you need',
+    'you deserve',
+    'we believe',
+    'we are',
+    'we have',
+    'our team',
+    'best quality',
+    'high quality',
+    'professional',
+    'experienced',
+    'qualified',
+    'dedicated',
+    'committed',
+    'passion',
+    'excellence',
+    'trusted',
+    'reliable',
+    'serving',
+    'years of',
+    'since',
+    'contact us',
+    'call us',
+    'visit us',
+    'book now',
+    'learn more',
+    'read more',
+    'more information',
+    'available',
+    'open',
+    'hours',
+    'location',
+    'address',
+    'phone',
+    'email',
+    'and much more',
+    'much more',
+    'etc',
+    'all types of',
+    'all kinds of',
+    'various',
+    'different',
+  ]
+
   const foundServices = new Set()
 
   for (const pattern of servicePatterns) {
@@ -48,13 +97,39 @@ function extractServices(text) {
     while ((match = pattern.exec(text)) !== null) {
       const serviceText = match[1]
       const services = serviceText
-        .split(/[,&]/)
-        .map(s => s.trim())
-        .filter(s => s.length > 2 && s.length < 50)
+        .split(/[,&\n]/)
+        .map(s => s.trim().toLowerCase())
+        .filter(s => {
+          // Basic length and format checks
+          if (s.length < 3 || s.length > 60) return false
+          if (s.match(/^https?:/)) return false
+          if (s.match(/^\d+$/)) return false
+
+          // Check against blacklist
+          const isBlacklisted = blacklist.some(phrase =>
+            s.includes(phrase.toLowerCase())
+          )
+          if (isBlacklisted) return false
+
+          // Filter out common words without actual service name
+          if (s.match(/^(the|our|your|and|or|with|for|of|in|at)$/)) return false
+
+          // Require at least one "real" word (not just pronouns/articles)
+          const words = s.split(/\s+/)
+          if (words.length === 0) return false
+
+          return true
+        })
 
       services.forEach(service => {
-        if (service && !service.match(/^https?:/) && service.length > 2) {
-          foundServices.add(service)
+        // Capitalize first letter of each word
+        const formattedService = service
+          .split(/\s+/)
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ')
+
+        if (formattedService.length > 3) {
+          foundServices.add(formattedService)
         }
       })
     }
