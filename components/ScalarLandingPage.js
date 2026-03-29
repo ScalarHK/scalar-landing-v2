@@ -921,7 +921,7 @@ export default function ScalarLandingPage() {
               <div className="space-y-4">
                 <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight">
                   Turn Your {' '}
-                  <span className="inline-block w-[240px] h-[1.2em] overflow-hidden bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent relative">
+                  <span className="inline-block w-[240px] bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
                     <span
                       key={currentChannelWord}
                       className="inline-block animate-scroll-word"
