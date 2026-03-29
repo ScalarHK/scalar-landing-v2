@@ -757,6 +757,13 @@ export default function ScalarLandingPage() {
 
   const channels = ['Website', 'WhatsApp', 'Instagram', 'Phone'];
 
+  const channelColors = {
+    0: 'from-blue-400 to-blue-600', // Website - blue
+    1: 'from-green-400 to-green-600', // WhatsApp - green
+    2: 'from-pink-500 via-purple-500 to-indigo-600', // Instagram - purple/pink
+    3: 'from-blue-500 to-cyan-500', // Phone - cyan/blue
+  };
+
   // Auto-cycle through channel words in hero
   useEffect(() => {
     if (stage === 'hero') {
@@ -919,15 +926,17 @@ export default function ScalarLandingPage() {
             {/* Left Column */}
             <div className="space-y-8">
               <div className="space-y-4">
-                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight">
-                  Turn Your {' '}
-                  <span className="inline-block min-w-[320px] whitespace-nowrap bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent transition-opacity duration-500">
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight space-y-2">
+                  <div>Turn Your</div>
+                  <div className={`bg-gradient-to-r ${channelColors[currentChannelWord]} bg-clip-text text-transparent transition-all duration-500`}>
                     {channels[currentChannelWord]}
-                  </span>
-                  {' '} Into a{' '}
-                  <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
-                    24/7 AI Receptionist
-                  </span>
+                  </div>
+                  <div>
+                    Into a{' '}
+                    <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
+                      24/7 AI Receptionist
+                    </span>
+                  </div>
                 </h1>
                 <p className="text-xl text-gray-300 leading-relaxed">
                   Never miss a lead again. Instantly preview how your business would handle inquiries with AI-powered WhatsApp, Instagram, and web chat.
