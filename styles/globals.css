@@ -34,20 +34,3 @@ body {
   animation: fadeIn 0.3s ease-in-out forwards;
 }
 
-/* Scroll animation for cycling words */
-@keyframes scrollWord {
-  0% {
-    opacity: 1;
-  }
-  85% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-
-.animate-scroll-word {
-  display: inline-block;
-  animation: scrollWord 3s ease-in-out forwards;
-}
