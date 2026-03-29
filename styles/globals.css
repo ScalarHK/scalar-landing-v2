@@ -33,3 +33,28 @@ body {
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-in-out forwards;
 }
+
+/* Scroll animation for cycling words */
+@keyframes scrollWord {
+  0% {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+}
+
+.animate-scroll-word {
+  display: inline-block;
+  animation: scrollWord 3s ease-in-out;
+}
