@@ -330,6 +330,7 @@ const ChatInterface = ({ data, domain }) => {
           businessName: data?.businessName || 'Our Business',
           services: data?.services || [],
           businessType: data?.type || 'service-business',
+          openingHours: data?.openingHours || null,
           tokenEstimate: tokenEstimate,
         }),
       });
@@ -828,6 +829,7 @@ export default function ScalarLandingPage() {
           quickActions: generateQuickActions(services),
           sampleChat: sampleChat,
           profileSummary: result.data.profileSummary || `Professional ${parsed.type.replace(/-/g, ' ')} service`,
+          openingHours: result.data.openingHours || null,
           icon: parsed.icon,
           type: parsed.type,
         };

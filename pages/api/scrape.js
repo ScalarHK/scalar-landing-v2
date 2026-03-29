@@ -16,6 +16,54 @@ function extractBusinessName(domain) {
     .join(' ')
 }
 
+// Extract opening hours from HTML
+function extractOpeningHours($) {
+  let hours = null
+
+  // Try common selectors for opening hours
+  const selectors = [
+    '[class*="hours"]',
+    '[class*="opening"]',
+    '[id*="hours"]',
+    '[id*="opening"]',
+    'h2:contains("Hours")',
+    'h2:contains("Opening Hours")',
+    'h3:contains("Hours")',
+    'h3:contains("Opening Hours")',
+  ]
+
+  for (const selector of selectors) {
+    const element = $(selector)
+    if (element.length > 0) {
+      const text = element.closest('div, section, article').text()
+      if (text && text.length > 10) {
+        hours = text.substring(0, 500).trim()
+        break
+      }
+    }
+  }
+
+  // If not found, search for common patterns in all text
+  if (!hours) {
+    const bodyText = $('body').text()
+    const patterns = [
+      /(?:Monday|Mon)[^.]*?(?:Sunday|Sun)[^.]*?(?:AM|PM|am|pm)[^.]{0,200}\./,
+      /(?:Hours?|Open)[:\s]+[^.]*?(?:AM|PM|am|pm)[^.]{0,150}\./,
+      /Mon[^.]*?Sun[^.]*?(?:am|AM)[^.]{0,100}/,
+    ]
+
+    for (const pattern of patterns) {
+      const match = bodyText.match(pattern)
+      if (match) {
+        hours = match[0]
+        break
+      }
+    }
+  }
+
+  return hours
+}
+
 // Use AI to intelligently extract services from content
 async function extractServicesWithAI(text, businessType, businessName) {
   try {
@@ -262,6 +310,9 @@ async function scrapeDomain(domain) {
     // Extract title
     const title = $('title').text() || $('h1').first().text() || extractBusinessName(cleanDomain)
 
+    // Extract opening hours
+    const openingHours = extractOpeningHours($)
+
     // Extract all text from common service/content areas
     const serviceTexts = []
     $('section, .services, .treatments, .packages, [class*="service"], [class*="treatment"]').each((i, el) => {
@@ -304,6 +355,7 @@ async function scrapeDomain(domain) {
       businessType,
       services: services.slice(0, 6),
       profileSummary,
+      openingHours: openingHours,
       favicon: extractFavicon(cleanDomain, $),
       metaDescription,
       assistantName: generateAssistantName(businessType),

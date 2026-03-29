@@ -15,7 +15,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { message, businessName, services, businessType, conversationHistory, tokenEstimate } = req.body
+  const { message, businessName, services, businessType, conversationHistory, tokenEstimate, openingHours } = req.body
 
   // Validate inputs
   if (!message || !businessName) {
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
     }
 
     // Create a system prompt that makes the AI act as a receptionist for this business
-    const systemPrompt = createSystemPrompt(businessName, services, businessType)
+    const systemPrompt = createSystemPrompt(businessName, services, businessType, openingHours)
 
     // Build messages array from conversation history
     const messages = [
@@ -114,7 +114,7 @@ export default async function handler(req, res) {
 }
 
 // Create a contextual system prompt for the business receptionist
-function createSystemPrompt(businessName, services, businessType) {
+function createSystemPrompt(businessName, services, businessType, openingHours) {
   const serviceList = services && services.length > 0
     ? services.join(', ')
     : 'various professional services'
@@ -129,11 +129,14 @@ function createSystemPrompt(businessName, services, businessType) {
 
   const typeDescription = typeDescriptions[businessType] || 'professional service business'
 
+  // Use extracted opening hours if available, otherwise use default
+  const hoursText = openingHours ? openingHours.trim() : 'Monday to Sunday, 10 AM to 8 PM'
+
   return `You are a professional, friendly receptionist for ${businessName}, a ${typeDescription}.
 
 **About ${businessName}:**
 - Services offered: ${serviceList}
-- Operating hours: Monday to Sunday, 10 AM to 8 PM
+- Operating hours: ${hoursText}
 - Always available 24/7 via this AI receptionist
 
 **Your role:**
