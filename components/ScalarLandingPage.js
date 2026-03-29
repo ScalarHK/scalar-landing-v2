@@ -766,14 +766,17 @@ export default function ScalarLandingPage() {
   const [domainParsed, setDomainParsed] = useState(null);
   const [error, setError] = useState('');
   const [chatSkin, setChatSkin] = useState('whatsapp'); // whatsapp or instagram
-  const [currentChannel, setCurrentChannel] = useState(0); // 0: Website, 1: WhatsApp, 2: Instagram, 3: Phone
+  const [showAIDemo, setShowAIDemo] = useState(true); // true for AI demo, false for without AI
+  const [currentChannelWord, setCurrentChannelWord] = useState(0); // 0: Website, 1: WhatsApp, 2: Instagram, 3: Phone
 
-  // Auto-rotate through channels in hero section
+  const channels = ['Website', 'WhatsApp', 'Instagram', 'Phone'];
+
+  // Auto-cycle through channel words in hero
   useEffect(() => {
     if (stage === 'hero') {
       const interval = setInterval(() => {
-        setCurrentChannel((prev) => (prev + 1) % 4);
-      }, 5000); // Rotate every 5 seconds
+        setCurrentChannelWord((prev) => (prev + 1) % 4);
+      }, 3000); // Change every 3 seconds
       return () => clearInterval(interval);
     }
   }, [stage]);
@@ -930,13 +933,17 @@ export default function ScalarLandingPage() {
             <div className="space-y-8">
               <div className="space-y-4">
                 <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight tracking-tight">
-                  Turn Your Website Into a{' '}
+                  Turn Your {' '}
+                  <span className="inline-block min-w-[240px] bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent transition-all duration-300">
+                    {channels[currentChannelWord]}
+                  </span>
+                  {' '} Into a{' '}
                   <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
                     24/7 AI Receptionist
                   </span>
                 </h1>
                 <p className="text-xl text-gray-300 leading-relaxed">
-                  Never miss a lead again. Instantly preview how your clinic, spa, or salon would handle inquiries with AI-powered WhatsApp, Instagram, and web chat.
+                  Never miss a lead again. Instantly preview how your business would handle inquiries with AI-powered WhatsApp, Instagram, and web chat.
                 </p>
               </div>
 
@@ -957,7 +964,7 @@ export default function ScalarLandingPage() {
                       setDomain(e.target.value);
                       setError('');
                     }}
-                    placeholder="e.g., beautyspa.hk or medskin.com"
+                    placeholder="e.g., yourcompany.com or business.hk"
                     className="w-full px-6 py-4 bg-white/10 border border-emerald-500/30 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent backdrop-blur-sm text-lg"
                   />
                   <button
@@ -974,172 +981,128 @@ export default function ScalarLandingPage() {
               <div className="space-y-3 pt-4">
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="text-emerald-400 flex-shrink-0 mt-1" size={20} />
-                  <span className="text-gray-300">Works with any clinic, spa, salon, or service business</span>
+                  <span className="text-gray-300">Works with any business type • No coding required</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <Clock className="text-emerald-400 flex-shrink-0 mt-1" size={20} />
-                  <span className="text-gray-300">Responses in seconds • 24/7 availability</span>
+                  <span className="text-gray-300">Instant responses • 24/7 lead capture</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <MessageCircle className="text-emerald-400 flex-shrink-0 mt-1" size={20} />
-                  <span className="text-gray-300">WhatsApp, Instagram, website chat, and more</span>
+                  <span className="text-gray-300">WhatsApp • Instagram • Website • Phone</span>
                 </div>
               </div>
             </div>
 
-            {/* Right Column - Channel Carousel */}
+            {/* Right Column - Before/After Comparison */}
             <div className="hidden md:flex justify-center">
               <div className="relative w-full max-w-sm">
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-3xl blur-3xl opacity-20 animate-pulse"></div>
 
-                {/* Channel Navigation */}
-                <div className="relative mb-6 flex items-center justify-between px-2">
+                {/* Toggle Button */}
+                <div className="relative mb-4 flex gap-2 bg-white rounded-xl p-1 shadow-lg">
                   <button
-                    onClick={() => setCurrentChannel((prev) => (prev - 1 + 4) % 4)}
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors text-emerald-300 hover:text-emerald-200"
+                    onClick={() => setShowAIDemo(!showAIDemo)}
+                    className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                      !showAIDemo
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}
                   >
-                    ‹
+                    ❌ Without AI
                   </button>
-                  <div className="flex gap-2">
-                    {['Website', 'WhatsApp', 'Instagram', 'Phone'].map((channel, idx) => (
-                      <div key={idx} className="text-center">
-                        <div
-                          className={`w-2 h-2 rounded-full transition-all ${
-                            idx === currentChannel ? 'bg-emerald-400 w-8' : 'bg-white/30'
-                          }`}
-                        ></div>
-                        <p className="text-xs text-gray-300 mt-1">{channel}</p>
-                      </div>
-                    ))}
-                  </div>
                   <button
-                    onClick={() => setCurrentChannel((prev) => (prev + 1) % 4)}
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors text-emerald-300 hover:text-emerald-200"
+                    onClick={() => setShowAIDemo(!showAIDemo)}
+                    className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                      showAIDemo
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}
                   >
-                    ›
+                    ✅ With AI
                   </button>
                 </div>
 
-                {/* Channel Preview Container */}
-                <div className="relative bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200 h-[500px]">
-                  {currentChannel === 0 && (
-                    // Website Chat
+                <div className="relative bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-200">
+                  {showAIDemo ? (
+                    // With AI - Instant Response
                     <>
-                      <div className="bg-white p-4 border-b border-gray-200">
+                      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-4 border-b">
                         <div className="flex items-center justify-between">
-                          <div className="font-semibold text-gray-900 text-sm">💻 Website Chat</div>
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <div className="font-semibold text-gray-900 text-sm">Business</div>
+                          <div className="text-xs text-gray-500">Active now ✓</div>
                         </div>
                       </div>
-                      <div className="p-4 space-y-3 overflow-y-auto h-[380px]">
-                        <div className="flex">
-                          <div className="bg-emerald-100 text-emerald-900 rounded-lg px-3 py-2 max-w-xs text-sm">
-                            <p>👋 Welcome! How can we help?</p>
-                          </div>
-                        </div>
+                      <div className="p-4 space-y-4">
+                        {/* User message */}
                         <div className="flex justify-end">
-                          <div className="bg-emerald-600 text-white rounded-lg px-3 py-2 max-w-xs text-sm rounded-tr-none">
-                            <p>Hi, what services do you offer?</p>
+                          <div className="bg-blue-500 text-white rounded-2xl px-4 py-2 max-w-xs rounded-br-none">
+                            <p className="text-sm">Hi, do you have availability?</p>
+                            <p className="text-xs mt-1 text-blue-100">2:34 PM</p>
                           </div>
                         </div>
-                        <div className="flex">
-                          <div className="bg-emerald-100 text-emerald-900 rounded-lg px-3 py-2 max-w-xs text-sm">
-                            <p>We offer facial treatments, laser therapy, and more! ✨</p>
+                        {/* AI response - instant */}
+                        <div className="flex justify-start">
+                          <div className="bg-gray-100 text-gray-900 rounded-2xl px-4 py-2 max-w-xs rounded-bl-none">
+                            <p className="text-sm">Yes! Our team is ready to help. When would you like to book?</p>
+                            <p className="text-xs mt-1 text-gray-500">2:34 PM ⚡ Instant</p>
                           </div>
                         </div>
+                        {/* User follow-up */}
+                        <div className="flex justify-end">
+                          <div className="bg-blue-500 text-white rounded-2xl px-4 py-2 max-w-xs rounded-br-none">
+                            <p className="text-sm">Tomorrow at 3pm?</p>
+                            <p className="text-xs mt-1 text-blue-100">2:35 PM</p>
+                          </div>
+                        </div>
+                        {/* AI response - instant */}
+                        <div className="flex justify-start">
+                          <div className="bg-gray-100 text-gray-900 rounded-2xl px-4 py-2 max-w-xs rounded-bl-none">
+                            <p className="text-sm">Perfect! I've booked you in. See you tomorrow! 🎯</p>
+                            <p className="text-xs mt-1 text-gray-500">2:35 PM ⚡ Instant</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="px-4 py-3 bg-emerald-50 border-t border-emerald-200">
+                        <p className="text-xs text-emerald-700 font-semibold">💡 Lead captured & booked instantly</p>
                       </div>
                     </>
-                  )}
-
-                  {currentChannel === 1 && (
-                    // WhatsApp
+                  ) : (
+                    // Without AI - Slow Response
                     <>
-                      <div className="bg-gradient-to-r from-green-50 to-green-100 p-3 border-b border-green-200">
+                      <div className="bg-gray-100 p-4 border-b">
                         <div className="flex items-center justify-between">
-                          <div className="text-sm font-semibold text-gray-900">📱 WhatsApp</div>
-                          <div className="text-xs text-gray-600">Online</div>
+                          <div className="font-semibold text-gray-900 text-sm">Business</div>
+                          <div className="text-xs text-gray-500">⚪ Away</div>
                         </div>
                       </div>
-                      <div className="p-3 space-y-3 overflow-y-auto h-[380px] bg-[url('data:image/svg+xml,%3Csvg%20width=%22100%22%20height=%22100%22%20xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cdefs%3E%3ClinearGradient%20id=%22grad%22%20x1=%220%25%22%20y1=%220%25%22%20x2=%22100%25%22%20y2=%22100%25%22%3E%3Cstop%20offset=%220%25%22%20style=%22stop-color:%23e0f2f1;stop-opacity:1%22%20/%3E%3Cstop%20offset=%22100%25%22%20style=%22stop-color:%23b2dfdb;stop-opacity:0.5%22%20/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width=%22100%22%20height=%22100%22%20fill=%22url(%23grad)%22/%3E%3C/svg%3E')]">
-                        <div className="flex">
-                          <div className="bg-white text-gray-900 rounded-2xl rounded-bl-none px-4 py-2 max-w-xs text-sm shadow-sm">
-                            <p>Hi! 👋 Thanks for reaching out</p>
-                          </div>
-                        </div>
+                      <div className="p-4 space-y-4">
+                        {/* User message */}
                         <div className="flex justify-end">
-                          <div className="bg-green-500 text-white rounded-2xl rounded-br-none px-4 py-2 max-w-xs text-sm">
-                            <p>Do you have skincare packages?</p>
+                          <div className="bg-blue-500 text-white rounded-2xl px-4 py-2 max-w-xs rounded-br-none">
+                            <p className="text-sm">Hi, do you have availability?</p>
+                            <p className="text-xs mt-1 text-blue-100">2:34 PM</p>
                           </div>
                         </div>
-                        <div className="flex">
-                          <div className="bg-white text-gray-900 rounded-2xl rounded-bl-none px-4 py-2 max-w-xs text-sm shadow-sm">
-                            <p>Yes! Check out our premium packages 💎</p>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
 
-                  {currentChannel === 2 && (
-                    // Instagram
-                    <>
-                      <div className="bg-white p-4 border-b">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 via-rose-400 to-orange-400"></div>
-                          <div>
-                            <p className="font-semibold text-gray-900 text-sm">Beauty Studio</p>
-                            <p className="text-xs text-gray-500">Active now</p>
+                        {/* Long wait indicator */}
+                        <div className="text-center py-4">
+                          <div className="inline-flex items-center gap-2 bg-red-50 px-3 py-1.5 rounded-full">
+                            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                            <span className="text-xs font-semibold text-red-700">Waiting... (6+ hours)</span>
                           </div>
                         </div>
-                      </div>
-                      <div className="p-4 space-y-3 overflow-y-auto h-[380px]">
-                        <div className="flex">
-                          <div className="bg-gray-100 text-gray-900 rounded-2xl rounded-bl-none px-4 py-2 max-w-xs text-sm">
-                            <p>Hey! 😊 How can I help?</p>
-                          </div>
-                        </div>
-                        <div className="flex justify-end">
-                          <div className="bg-blue-500 text-white rounded-2xl rounded-br-none px-4 py-2 max-w-xs text-sm">
-                            <p>Tell me about treatments</p>
-                          </div>
-                        </div>
-                        <div className="flex">
-                          <div className="bg-gray-100 text-gray-900 rounded-2xl rounded-bl-none px-4 py-2 max-w-xs text-sm">
-                            <p>We specialize in facials & lasers! ✨</p>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
 
-                  {currentChannel === 3 && (
-                    // Phone/Voice
-                    <>
-                      <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4 border-b">
-                        <div className="text-center">
-                          <p className="text-white font-semibold text-sm">☎️ Voice Call</p>
-                          <p className="text-blue-100 text-xs mt-1">Connected</p>
+                        {/* Delayed response */}
+                        <div className="flex justify-start">
+                          <div className="bg-gray-200 text-gray-900 rounded-2xl px-4 py-2 max-w-xs rounded-bl-none opacity-60">
+                            <p className="text-sm text-gray-600">Let me check our schedule...</p>
+                            <p className="text-xs mt-1 text-gray-500">8:45 PM (same day) 😞</p>
+                          </div>
                         </div>
                       </div>
-                      <div className="p-8 space-y-6 flex flex-col items-center justify-center h-[380px]">
-                        <div className="w-20 h-20 rounded-full bg-gradient-to-r from-blue-400 to-blue-600 flex items-center justify-center text-white text-4xl animate-pulse">
-                          🎤
-                        </div>
-                        <div className="text-center space-y-2">
-                          <p className="font-semibold text-gray-900">Connected to AI Receptionist</p>
-                          <p className="text-sm text-gray-600">Answering your call...</p>
-                        </div>
-                        <div className="flex gap-4 pt-4">
-                          <button className="w-12 h-12 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-700">
-                            🔇
-                          </button>
-                          <button className="w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center text-white font-bold">
-                            ✕
-                          </button>
-                          <button className="w-12 h-12 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center text-gray-700">
-                            📱
-                          </button>
-                        </div>
+                      <div className="px-4 py-3 bg-red-50 border-t border-red-200">
+                        <p className="text-xs text-red-700 font-semibold">❌ Potential customer moved on</p>
                       </div>
                     </>
                   )}
@@ -1275,7 +1238,7 @@ export default function ScalarLandingPage() {
               <div className="bg-gradient-to-br from-emerald-500 to-teal-500 rounded-2xl p-6 text-white space-y-4 lg:sticky lg:top-24">
                 <h3 className="text-xl font-bold">Ready to go live?</h3>
                 <p className="text-sm text-emerald-50">
-                  Get this AI receptionist running for your clinic in 48 hours.
+                  Get your AI receptionist live in 48 hours. No setup headaches.
                 </p>
 
                 <div className="space-y-2">
@@ -1331,7 +1294,7 @@ export default function ScalarLandingPage() {
               {[
                 { q: 'How long does setup take?', a: '48 hours from demo booking to launch.' },
                 { q: 'Can I customize the responses?', a: 'Yes, fully customizable to match your brand and services.' },
-                { q: 'What if I have questions after launch?', a: 'Dedicated support team available 24/7 for your clinic.' },
+                { q: 'What if I have questions after launch?', a: 'Dedicated support team available 24/7 for all clients.' },
               ].map((faq, idx) => (
                 <div key={idx} className="border-b border-gray-200 pb-4 last:border-0">
                   <p className="font-semibold text-gray-900 text-sm mb-2">{faq.q}</p>
