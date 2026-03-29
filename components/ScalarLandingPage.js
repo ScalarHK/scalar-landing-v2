@@ -68,7 +68,78 @@ const generateQuickActions = (services) => {
   return actions.slice(0, 4);
 };
 
-// Generate sample chat based on business name and services
+// Generate dynamic sample chat using OpenAI
+const generateSampleChatWithAI = async (businessName, services, businessType) => {
+  try {
+    const servicesList = services && services.length > 0
+      ? services.slice(0, 3).join(', ')
+      : 'services';
+
+    const prompt = `Generate a realistic 3-turn customer service conversation for ${businessName}.
+
+Business Type: ${businessType}
+Services: ${servicesList}
+
+Create a JSON array with exactly 3 user-bot exchanges (6 messages total). The conversation should:
+1. Start with a customer asking about a service
+2. Show the bot responding naturally and helpfully
+3. Customer asks a follow-up question
+4. Show relevant bot response
+5. Customer expresses interest or asks about availability
+6. Bot provides helpful response with call-to-action
+
+Return ONLY valid JSON array, nothing else. Format:
+[
+  {"type": "user", "text": "...", "time": "2:34 PM"},
+  {"type": "bot", "text": "...", "time": "2:34 PM"},
+  ...
+]
+
+Rules:
+- Make it feel natural and specific to this business
+- Include at least one emoji
+- Keep messages concise (1-2 sentences)
+- Times should be realistic (2-3 minutes apart)
+- Show the AI being helpful and moving toward a booking`;
+
+    const response = await fetch('/api/chat-helper', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: prompt,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Failed to generate sample chat');
+      return null;
+    }
+
+    const result = await response.json();
+
+    if (result.reply) {
+      try {
+        // Try to parse the JSON from the response
+        const jsonMatch = result.reply.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const sampleChat = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(sampleChat) && sampleChat.length > 0) {
+            console.log('AI generated sample chat:', sampleChat);
+            return sampleChat;
+          }
+        }
+      } catch (parseError) {
+        console.error('Failed to parse sample chat JSON:', parseError);
+      }
+    }
+  } catch (error) {
+    console.error('Error generating sample chat:', error);
+  }
+
+  return null;
+};
+
+// Fallback static sample chat
 const generateSampleChat = (businessName, services) => {
   const defaultService = services && services.length > 0 ? services[0] : 'services';
 
@@ -735,15 +806,28 @@ export default function ScalarLandingPage() {
         setDomainParsed(parsed);
 
         // Create business data object from scraped content
+        const services = result.data.services && result.data.services.length > 0
+          ? result.data.services
+          : generateMockData(domain, parsed.type).services;
+
+        // Try to generate AI sample chat, fall back to static if it fails
+        let sampleChat = null;
+        if (process.env.NEXT_PUBLIC_ENABLE_AI_SAMPLES !== 'false') {
+          sampleChat = await generateSampleChatWithAI(result.data.businessName, services, parsed.type);
+        }
+
+        // Fallback to static sample chat if AI generation failed
+        if (!sampleChat || sampleChat.length === 0) {
+          sampleChat = generateSampleChat(result.data.businessName, services);
+        }
+
         const businessData = {
           businessName: result.data.businessName,
           assistantName: result.data.assistantName,
           greeting: `Hi! Welcome to ${result.data.businessName}. How can I help you today? 😊`,
-          services: result.data.services && result.data.services.length > 0
-            ? result.data.services
-            : generateMockData(domain, parsed.type).services,
-          quickActions: generateQuickActions(result.data.services),
-          sampleChat: generateSampleChat(result.data.businessName, result.data.services),
+          services: services,
+          quickActions: generateQuickActions(services),
+          sampleChat: sampleChat,
           profileSummary: result.data.profileSummary || `Professional ${parsed.type.replace(/-/g, ' ')} service`,
           icon: parsed.icon,
           type: parsed.type,
@@ -755,7 +839,21 @@ export default function ScalarLandingPage() {
         console.log('Scraping failed, using mock data');
         const parsed = parseDomain(domain);
         setDomainParsed(parsed);
-        const mockData = { ...generateMockData(domain, parsed.type), type: parsed.type };
+        const mockData = generateMockData(domain, parsed.type);
+
+        // Try to generate AI sample chat for mock data too
+        let sampleChat = null;
+        if (process.env.NEXT_PUBLIC_ENABLE_AI_SAMPLES !== 'false') {
+          sampleChat = await generateSampleChatWithAI(mockData.businessName, mockData.services, parsed.type);
+        }
+
+        if (!sampleChat || sampleChat.length === 0) {
+          sampleChat = mockData.sampleChat;
+        }
+
+        mockData.sampleChat = sampleChat;
+        mockData.type = parsed.type;
+
         setBusinessData(mockData);
       }
 
@@ -768,7 +866,21 @@ export default function ScalarLandingPage() {
       // Fallback to mock data on error
       const parsed = parseDomain(domain);
       setDomainParsed(parsed);
-      const mockData = { ...generateMockData(domain, parsed.type), type: parsed.type };
+      const mockData = generateMockData(domain, parsed.type);
+
+      // Try to generate AI sample chat for mock data
+      let sampleChat = null;
+      if (process.env.NEXT_PUBLIC_ENABLE_AI_SAMPLES !== 'false') {
+        sampleChat = await generateSampleChatWithAI(mockData.businessName, mockData.services, parsed.type);
+      }
+
+      if (!sampleChat || sampleChat.length === 0) {
+        sampleChat = mockData.sampleChat;
+      }
+
+      mockData.sampleChat = sampleChat;
+      mockData.type = parsed.type;
+
       setBusinessData(mockData);
 
       clearInterval(interval);
