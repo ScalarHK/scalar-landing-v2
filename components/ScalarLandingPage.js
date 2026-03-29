@@ -475,6 +475,182 @@ const ChatInterface = ({ data, domain }) => {
   );
 };
 
+// Instagram DM-style chat component
+const InstagramChatInterface = ({ data, domain }) => {
+  const [messages, setMessages] = useState(data.sampleChat);
+  const [inputValue, setInputValue] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const messagesContainerRef = useRef(null);
+
+  const scrollToBottom = () => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Estimate tokens (rough: ~4 chars per token)
+  const estimateTokens = (text) => Math.ceil(text.length / 4);
+
+  // Get conversation history with token limits
+  const getConversationContext = (allMessages) => {
+    const maxHistoryTokens = 2000;
+    const maxMessages = 10;
+
+    let contextMessages = [];
+    let totalTokens = 0;
+
+    for (let i = allMessages.length - 1; i >= 0 && contextMessages.length < maxMessages; i--) {
+      const msg = allMessages[i];
+      const msgTokens = estimateTokens(msg.text);
+
+      if (totalTokens + msgTokens > maxHistoryTokens) {
+        break;
+      }
+
+      contextMessages.unshift(msg);
+      totalTokens += msgTokens;
+    }
+
+    return { messages: contextMessages, tokenEstimate: totalTokens };
+  };
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!inputValue.trim()) return;
+
+    const userMessage = {
+      type: 'user',
+      text: inputValue,
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setInputValue('');
+    setIsTyping(true);
+
+    try {
+      const { messages: contextMessages, tokenEstimate } = getConversationContext([...messages, userMessage]);
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage.text,
+          conversationHistory: contextMessages,
+          businessName: data?.businessName || 'Our Business',
+          services: data?.services || [],
+          businessType: data?.type || 'service-business',
+          tokenEstimate: tokenEstimate,
+        }),
+      });
+
+      const result = await response.json();
+
+      let botResponse = result.reply || 'That\'s a great question! Let me help you with that. 😊';
+
+      if (!result.success) {
+        botResponse = 'Thanks for your message! Our team will get back to you shortly. 😊';
+      }
+
+      const botMessage = {
+        type: 'bot',
+        text: botResponse,
+        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+      };
+
+      setMessages(prev => [...prev, botMessage]);
+      setIsTyping(false);
+    } catch (error) {
+      console.error('Chat error:', error);
+
+      const fallbackMessage = {
+        type: 'bot',
+        text: 'Sorry, I\'m having trouble responding right now. Please try again. 😊',
+        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }),
+      };
+
+      setMessages(prev => [...prev, fallbackMessage]);
+      setIsTyping(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col h-96 sm:h-[500px]">
+      {/* Header - Instagram Style */}
+      <div className="bg-white border-b border-gray-200 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-400 via-rose-400 to-orange-400 flex items-center justify-center text-white font-bold text-sm">
+              {data.businessName.charAt(0)}
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 text-sm">{data.businessName}</h3>
+              <p className="text-xs text-gray-500">Active now</p>
+            </div>
+          </div>
+          <div className="text-gray-400">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      {/* Messages - Instagram Style */}
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
+        {messages.map((msg, idx) => (
+          <div
+            key={idx}
+            className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div
+              className={`max-w-xs px-4 py-2 rounded-2xl text-sm ${
+                msg.type === 'user'
+                  ? 'bg-blue-500 text-white rounded-br-none'
+                  : 'bg-gray-100 text-gray-900 rounded-bl-none'
+              }`}
+            >
+              <p>{msg.text}</p>
+            </div>
+          </div>
+        ))}
+
+        {isTyping && (
+          <div className="flex justify-start">
+            <div className="bg-gray-100 text-gray-900 px-4 py-2 rounded-2xl rounded-bl-none">
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Input - Instagram Style */}
+      <form onSubmit={handleSendMessage} className="border-t border-gray-200 bg-white p-3 flex gap-2">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          placeholder="Aa"
+          className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+        />
+        <button
+          type="submit"
+          className="flex-shrink-0 text-blue-500 hover:text-blue-600 font-semibold transition-colors"
+        >
+          Send
+        </button>
+      </form>
+    </div>
+  );
+};
+
 // Business Profile Card
 const BusinessProfileCard = ({ data, domain }) => {
   return (
@@ -518,6 +694,7 @@ export default function ScalarLandingPage() {
   const [businessData, setBusinessData] = useState(null);
   const [domainParsed, setDomainParsed] = useState(null);
   const [error, setError] = useState('');
+  const [chatSkin, setChatSkin] = useState('whatsapp'); // whatsapp or instagram
 
   const handleDomainSubmit = async (e) => {
     e.preventDefault();
@@ -796,9 +973,37 @@ export default function ScalarLandingPage() {
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Chat */}
             <div className="lg:col-span-2 flex flex-col">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Live Demo</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Live Demo</h2>
+                <div className="flex gap-2 bg-gray-100 p-1 rounded-lg">
+                  <button
+                    onClick={() => setChatSkin('whatsapp')}
+                    className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                      chatSkin === 'whatsapp'
+                        ? 'bg-white text-gray-900 shadow'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    💬 WhatsApp
+                  </button>
+                  <button
+                    onClick={() => setChatSkin('instagram')}
+                    className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                      chatSkin === 'instagram'
+                        ? 'bg-white text-gray-900 shadow'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    📱 Instagram
+                  </button>
+                </div>
+              </div>
               <div className="flex-1 min-h-0">
-                <ChatInterface data={businessData} domain={domain} />
+                {chatSkin === 'whatsapp' ? (
+                  <ChatInterface data={businessData} domain={domain} />
+                ) : (
+                  <InstagramChatInterface data={businessData} domain={domain} />
+                )}
               </div>
               <p className="text-xs text-gray-500 mt-3 text-center">
                 💡 Tip: Click quick actions or type your own questions
