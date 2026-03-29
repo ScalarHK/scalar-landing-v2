@@ -461,7 +461,7 @@ const ChatInterface = ({ data, domain }) => {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col h-96 sm:h-[500px]">
+    <div className="bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col h-[550px] sm:h-[700px]">
       {/* Header */}
       <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-gray-200 p-4">
         <div className="flex items-center justify-between">
@@ -649,7 +649,7 @@ const InstagramChatInterface = ({ data, domain }) => {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col h-96 sm:h-[500px]">
+    <div className="bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col h-[550px] sm:h-[700px]">
       {/* Header - Instagram Style */}
       <div className="bg-white border-b border-gray-200 p-4">
         <div className="flex items-center justify-between">
