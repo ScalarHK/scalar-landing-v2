@@ -1,5 +1,10 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
+import { OpenAI } from 'openai'
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
 
 // Helper function to extract business name from domain
 function extractBusinessName(domain) {
@@ -9,6 +14,70 @@ function extractBusinessName(domain) {
     .split(/[-_]/)
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
+}
+
+// Use AI to intelligently extract services from content
+async function extractServicesWithAI(text, businessType, businessName) {
+  try {
+    // Only use first 2000 chars to save tokens
+    const contentSample = text.substring(0, 2000)
+
+    const prompt = `You are an expert at analyzing business websites to identify services offered.
+
+Business Name: ${businessName}
+Business Type: ${businessType}
+
+Website Content:
+${contentSample}
+
+Based on the content above, identify the 4-6 actual services or offerings this business provides.
+Return ONLY a JSON array of service names, nothing else. Example format:
+["Service Name 1", "Service Name 2", "Service Name 3"]
+
+Rules:
+- List actual services, not marketing phrases
+- Use proper capitalization
+- Be specific (e.g., "Facial Treatments" not "Treatments")
+- Avoid generic phrases like "that suits your exact needs"
+- Each service should be 2-5 words max`
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.3,
+      max_tokens: 150,
+    })
+
+    const responseText = response.choices[0].message.content.trim()
+
+    // Parse the JSON response
+    try {
+      const services = JSON.parse(responseText)
+      if (Array.isArray(services) && services.length > 0) {
+        // Filter to ensure quality services
+        const filtered = services
+          .filter(s => typeof s === 'string' && s.length > 2 && s.length < 50)
+          .slice(0, 6)
+
+        if (filtered.length > 0) {
+          console.log('AI extracted services:', filtered)
+          return filtered
+        }
+      }
+    } catch (parseError) {
+      console.error('Failed to parse AI response:', responseText)
+    }
+  } catch (error) {
+    console.error('AI service extraction failed:', error.message)
+  }
+
+  // Return null to fallback to regex extraction
+  return null
 }
 
 // Helper function to detect business type from content
@@ -207,8 +276,16 @@ async function scrapeDomain(domain) {
     // Detect business type
     const businessType = detectBusinessType(allServiceText)
 
-    // Extract services
-    const services = extractServices(allServiceText)
+    // Extract services using AI first (more accurate), fallback to regex
+    let services = null
+    if (process.env.OPENAI_API_KEY) {
+      services = await extractServicesWithAI(allServiceText, businessType, title)
+    }
+
+    // Fallback to regex-based extraction if AI fails or key not available
+    if (!services || services.length === 0) {
+      services = extractServices(allServiceText)
+    }
 
     // Create profile summary
     const profileSummary = metaDescription.substring(0, 150) ||
