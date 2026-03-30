@@ -1,0 +1,529 @@
+{
+  "name": "Scalar — Instagram DM AI Receptionist (Supabase)",
+  "nodes": [
+
+    {
+      "id": "node-ig-001",
+      "name": "Meta Webhook (GET + POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "instagram-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+
+    {
+      "id": "node-ig-002",
+      "name": "Meta Webhook (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 480],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+
+    {
+      "id": "node-ig-003",
+      "name": "Verify Challenge (GET)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "jsCode": "// Meta sends a GET request to verify the webhook endpoint\n// Must echo back hub.challenge if hub.verify_token matches\nconst params = $input.first().json.query || $input.first().json;\nconst verifyToken = params['hub.verify_token'];\nconst challenge = params['hub.challenge'];\nconst mode = params['hub.mode'];\n\nconst EXPECTED_TOKEN = 'scalar_verify_2025'; // Must match Meta App Dashboard\n\nif (mode === 'subscribe' && verifyToken === EXPECTED_TOKEN) {\n  return [{ json: { challenge, isVerification: true } }];\n}\nreturn [{ json: { error: 'Token mismatch', isVerification: false } }];"
+      }
+    },
+
+    {
+      "id": "node-ig-004",
+      "name": "Return Challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": { "responseCode": 200 }
+      }
+    },
+
+    {
+      "id": "node-ig-005",
+      "name": "Return 200 OK (POST)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 480],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"ok\" }",
+        "options": { "responseCode": 200 }
+      }
+    },
+
+    {
+      "id": "node-ig-006",
+      "name": "Extract IG Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 480],
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\n// Meta sends: { object: 'instagram', entry: [{ messaging: [{ sender: {id}, message: {text} }] }] }\nconst entries = body.entry || [];\nif (!entries.length) return [];\n\nconst messaging = entries[0]?.messaging || [];\nif (!messaging.length) return [];\n\nconst event = messaging[0];\nconst senderId = event.sender?.id;\nconst pageId = event.recipient?.id; // this is the clinic's IG page ID\nconst text = event.message?.text || '';\nconst mid = event.message?.mid || '';\n\n// Filter: skip echo messages (sent by the page itself) and non-text events\nif (!senderId || !text || event.message?.is_echo) return [];\n\nreturn [{ json: {\n  igSenderId: senderId,\n  pageId,\n  text,\n  mid,\n  receivedAt: new Date().toISOString()\n} }];"
+      }
+    },
+
+    {
+      "id": "node-ig-007",
+      "name": "Business Hours Check (HKT)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 480],
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst hkOffset = 8 * 60;\nconst utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();\nconst hkMinutes = (utcMinutes + hkOffset) % (24 * 60);\nconst hkDay = new Date(now.getTime() + hkOffset * 60000).getUTCDay();\n\nconst isWeekday = hkDay >= 1 && hkDay <= 6;\nconst isOpenHours = hkMinutes >= 540 && hkMinutes < 1140;\nconst isBusinessHours = isWeekday && isOpenHours;\n\nreturn [{ json: { ...$input.first().json, isBusinessHours } }];"
+      }
+    },
+
+    {
+      "id": "node-ig-008",
+      "name": "Business Hours?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 480],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [{ "id": "cond-bh", "leftValue": "={{ $json.isBusinessHours }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true" } }],
+          "combinator": "and"
+        }
+      }
+    },
+
+    {
+      "id": "node-ig-bh1",
+      "name": "[BH] Upsert Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 340],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/contacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ ig_sender_id: $json.igSenderId, source: 'Instagram', tags: ['instagram', 'business-hours'] }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-ig-bh2",
+      "name": "[BH] Log Inbound Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1560, 340],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ contact_id: $('node-ig-bh1').first().json[0]?.id, channel: 'instagram', direction: 'inbound', content: $('Extract IG Message').first().json.text, metadata: { igSenderId: $('Extract IG Message').first().json.igSenderId, mid: $('Extract IG Message').first().json.mid, handledBy: 'manual' }, ai_handled: false }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } },
+      "_notes": "Business hours — team replies manually via Meta Business Suite or WATI if connected. n8n just logs."
+    },
+
+    {
+      "id": "node-ig-ah1",
+      "name": "[AH] Upsert Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1340, 620],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/contacts",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ ig_sender_id: $json.igSenderId, source: 'Instagram', tags: ['instagram', 'after-hours'] }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-ig-ah2",
+      "name": "[AH] Get Conversation History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1560, 620],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/conversations?contact_id=eq.{{ $('node-ig-ah1').first().json[0]?.id }}&channel=eq.instagram&select=*",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-ig-ah3",
+      "name": "[AH] Build AI Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 620],
+      "parameters": {
+        "jsCode": "const messageData = $('Extract IG Message').first().json;\nconst contactRow = $('node-ig-ah1').first().json[0];\nconst conversationRows = $('node-ig-ah2').first().json;\n\nconst contactId = contactRow?.id;\nconst existingConversation = conversationRows.length > 0 ? conversationRows[0] : null;\nconst existingHistory = existingConversation?.history || [];\n\nconst updatedHistory = [\n  ...existingHistory,\n  { role: 'user', content: messageData.text, timestamp: new Date().toISOString() }\n];\n\nconst recentHistory = updatedHistory.slice(-12);\nconst openAiMessages = recentHistory.map(m => ({ role: m.role, content: m.content }));\n\nreturn [{ json: {\n  contactId,\n  igSenderId: messageData.igSenderId,\n  pageId: messageData.pageId,\n  inboundText: messageData.text,\n  conversationId: existingConversation?.id || null,\n  isNewConversation: !existingConversation,\n  existingHistory,\n  updatedHistory,\n  openAiMessages\n} }];"
+      }
+    },
+
+    {
+      "id": "node-ig-ah4",
+      "name": "[AH] Call OpenAI (Aria)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2000, 620],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ model: 'gpt-4o', messages: [{ role: 'system', content: 'You are Aria, a warm and professional AI receptionist for a Hong Kong med-aesthetics clinic. You are responding to Instagram DMs.\\n\\nGuidelines:\\n- Respond naturally in the same language the client uses (English or Traditional Chinese)\\n- Instagram DMs should feel conversational and friendly, not overly formal\\n- Keep replies under 200 characters where possible — this is DM, not email\\n- Never quote prices; say the team will confirm during consultation\\n- If the client wants to book or shows strong interest, extract their intent using this exact pattern:\\n[BOOKING_INTENT]{\"name\":\"<name or unknown>\",\"service\":\"<service>\",\"preferred_time\":\"<time or empty>\"}[/BOOKING_INTENT]\\n- Clinic hours: Mon–Sat 9am–7pm HKT. You are handling after-hours messages.' }, ...$json.openAiMessages], max_tokens: 350, temperature: 0.65 }) }}"
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "openai-api-key", "name": "OpenAI API Key" } }
+    },
+
+    {
+      "id": "node-ig-ah5",
+      "name": "[AH] Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 620],
+      "parameters": {
+        "jsCode": "const aiRaw = $input.first().json.choices[0].message.content;\nconst ctx = $('node-ig-ah3').first().json;\n\nlet bookingIntent = null;\nconst intentMatch = aiRaw.match(/\\[BOOKING_INTENT\\]([\\s\\S]*?)\\[\\/BOOKING_INTENT\\]/);\nif (intentMatch) {\n  try { bookingIntent = JSON.parse(intentMatch[1]); } catch(e) {}\n}\n\nconst aiText = aiRaw.replace(/\\[BOOKING_INTENT\\][\\s\\S]*?\\[\\/BOOKING_INTENT\\]/g, '').trim();\n\nconst finalHistory = [\n  ...ctx.updatedHistory,\n  { role: 'assistant', content: aiText, timestamp: new Date().toISOString() }\n];\n\nreturn [{ json: {\n  ...ctx,\n  aiText,\n  bookingIntent,\n  hasBookingIntent: bookingIntent !== null,\n  finalHistory,\n  finalMessageCount: finalHistory.length\n} }];"
+      }
+    },
+
+    {
+      "id": "node-ig-ah6",
+      "name": "[AH] Upsert Conversation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2440, 620],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/conversations",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ contact_id: $json.contactId, channel: 'instagram', history: $json.finalHistory, last_message_at: new Date().toISOString(), message_count: $json.finalMessageCount }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-ig-ah7",
+      "name": "[AH] Send IG Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2660, 620],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $('node-ig-ah5').first().json.pageId }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ recipient: { id: $('node-ig-ah5').first().json.igSenderId }, message: { text: $('node-ig-ah5').first().json.aiText } }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_META_PAGE_ACCESS_TOKEN" }
+          ]
+        },
+        "options": {}
+      },
+      "_notes": "Page Access Token must have instagram_manage_messages permission. Token must be refreshed every 60 days unless using a System User token (permanent)."
+    },
+
+    {
+      "id": "node-ig-ah8",
+      "name": "[AH] Log Messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2880, 540],
+      "parameters": {
+        "jsCode": "// Return two message records to log in sequence via Supabase\nconst ctx = $('node-ig-ah5').first().json;\n\nreturn [\n  { json: { contact_id: ctx.contactId, channel: 'instagram', direction: 'inbound', content: ctx.inboundText, metadata: { igSenderId: ctx.igSenderId }, ai_handled: true } },\n  { json: { contact_id: ctx.contactId, channel: 'instagram', direction: 'outbound', content: ctx.aiText, metadata: { model: 'gpt-4o', hasBookingIntent: ctx.hasBookingIntent }, ai_handled: true } }\n];"
+      }
+    },
+
+    {
+      "id": "node-ig-ah9",
+      "name": "[AH] Batch Log to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [3100, 540],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify($json) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } },
+      "_notes": "n8n will call this node once per item from Log Messages — two HTTP calls, one for each message direction."
+    },
+
+    {
+      "id": "node-ig-ah10",
+      "name": "Booking Intent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2880, 720],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [{ "id": "cond-intent", "leftValue": "={{ $('node-ig-ah5').first().json.hasBookingIntent }}", "rightValue": true, "operator": { "type": "boolean", "operation": "true" } }],
+          "combinator": "and"
+        }
+      }
+    },
+
+    {
+      "id": "node-ig-ah11",
+      "name": "Insert Lead (Supabase)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [3100, 720],
+      "parameters": {
+        "method": "POST",
+        "url": "https://qnzaiplsqgiywfaebyrj.supabase.co/rest/v1/leads",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ contact_id: $('node-ig-ah5').first().json.contactId, status: 'consultation_requested', channel: 'instagram', service_interest: $('node-ig-ah5').first().json.bookingIntent?.service || 'Unspecified', preferred_time: $('node-ig-ah5').first().json.bookingIntent?.preferred_time || '', booking_data: $('node-ig-ah5').first().json.bookingIntent || {}, notes: 'Captured after hours via Instagram DM AI' }) }}"
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_KEY" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": { "httpHeaderAuth": { "id": "supabase-service-key", "name": "Supabase Service Key" } }
+    },
+
+    {
+      "id": "node-ig-ah12",
+      "name": "Slack: Booking Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [3320, 720],
+      "parameters": {
+        "method": "POST",
+        "url": "YOUR_SLACK_WEBHOOK_URL",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ text: ':camera: *New booking intent captured (Instagram DM — after hours)*\\n*Service:* ' + ($('node-ig-ah5').first().json.bookingIntent?.service || 'Not specified') + '\\n*Preferred time:* ' + ($('node-ig-ah5').first().json.bookingIntent?.preferred_time || 'Not specified') + '\\n_Reply via Meta Business Suite or tag team to follow up_' }) }}"
+        },
+        "options": {}
+      }
+    },
+
+    {
+      "id": "node-ig-ah13",
+      "name": "CRM Adapter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3540, 720],
+      "parameters": {
+        "jsCode": "const ctx = $('node-ig-ah5').first().json;\nconst leadRow = $('Insert Lead (Supabase)').first().json[0];\n\nconst crmPayload = {\n  source: 'Scalar AI Receptionist',\n  channel: 'instagram',\n  lead_id: leadRow?.id,\n  contact_id: ctx.contactId,\n  ig_sender_id: ctx.igSenderId,\n  service_interest: ctx.bookingIntent?.service,\n  preferred_time: ctx.bookingIntent?.preferred_time,\n  status: 'consultation_requested',\n  captured_at: new Date().toISOString()\n};\n\nconst CLIENT_CRM_ENDPOINT = 'YOUR_CLIENT_CRM_WEBHOOK_URL';\nconst CLIENT_NAME = 'Demo Clinic';\n\nreturn [{ json: { crmPayload, CLIENT_CRM_ENDPOINT, CLIENT_NAME, leadRow } }];"
+      }
+    },
+
+    {
+      "id": "node-ig-ah14",
+      "name": "Send to Client CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [3760, 720],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.CLIENT_CRM_ENDPOINT }}",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify($json.crmPayload) }}"
+        },
+        "options": { "response": { "response": { "neverError": true } } }
+      }
+    }
+
+  ],
+
+  "connections": {
+    "Meta Webhook (GET + POST)": {
+      "main": [[{ "node": "Verify Challenge (GET)", "type": "main", "index": 0 }]]
+    },
+    "Verify Challenge (GET)": {
+      "main": [[{ "node": "Return Challenge", "type": "main", "index": 0 }]]
+    },
+    "Meta Webhook (POST)": {
+      "main": [[
+        { "node": "Return 200 OK (POST)", "type": "main", "index": 0 },
+        { "node": "Extract IG Message", "type": "main", "index": 0 }
+      ]]
+    },
+    "Extract IG Message": {
+      "main": [[{ "node": "Business Hours Check (HKT)", "type": "main", "index": 0 }]]
+    },
+    "Business Hours Check (HKT)": {
+      "main": [[{ "node": "Business Hours?", "type": "main", "index": 0 }]]
+    },
+    "Business Hours?": {
+      "main": [
+        [{ "node": "[BH] Upsert Contact", "type": "main", "index": 0 }],
+        [{ "node": "[AH] Upsert Contact", "type": "main", "index": 0 }]
+      ]
+    },
+    "[BH] Upsert Contact": {
+      "main": [[{ "node": "[BH] Log Inbound Message", "type": "main", "index": 0 }]]
+    },
+    "[AH] Upsert Contact": {
+      "main": [[{ "node": "[AH] Get Conversation History", "type": "main", "index": 0 }]]
+    },
+    "[AH] Get Conversation History": {
+      "main": [[{ "node": "[AH] Build AI Context", "type": "main", "index": 0 }]]
+    },
+    "[AH] Build AI Context": {
+      "main": [[{ "node": "[AH] Call OpenAI (Aria)", "type": "main", "index": 0 }]]
+    },
+    "[AH] Call OpenAI (Aria)": {
+      "main": [[{ "node": "[AH] Parse AI Response", "type": "main", "index": 0 }]]
+    },
+    "[AH] Parse AI Response": {
+      "main": [[{ "node": "[AH] Upsert Conversation", "type": "main", "index": 0 }]]
+    },
+    "[AH] Upsert Conversation": {
+      "main": [[
+        { "node": "[AH] Send IG Reply", "type": "main", "index": 0 },
+        { "node": "[AH] Log Messages", "type": "main", "index": 0 },
+        { "node": "Booking Intent?", "type": "main", "index": 0 }
+      ]]
+    },
+    "[AH] Log Messages": {
+      "main": [[{ "node": "[AH] Batch Log to Supabase", "type": "main", "index": 0 }]]
+    },
+    "Booking Intent?": {
+      "main": [
+        [
+          { "node": "Insert Lead (Supabase)", "type": "main", "index": 0 },
+          { "node": "Slack: Booking Alert", "type": "main", "index": 0 }
+        ],
+        []
+      ]
+    },
+    "Insert Lead (Supabase)": {
+      "main": [[{ "node": "CRM Adapter", "type": "main", "index": 0 }]]
+    },
+    "CRM Adapter": {
+      "main": [[{ "node": "Send to Client CRM", "type": "main", "index": 0 }]]
+    }
+  },
+
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "_meta": {
+    "instanceId": "scalar-demo",
+    "version": "2.0-supabase",
+    "notes": "SETUP CHECKLIST: (1) In Meta Developer Console: add your n8n webhook URL (both GET and POST go to the same path 'instagram-webhook') — set Verify Token to 'scalar_verify_2025'. (2) Grant instagram_manage_messages permission to your Meta app. (3) Replace YOUR_META_PAGE_ACCESS_TOKEN — generate a long-lived Page Access Token or use a System User token. (4) Replace YOUR_SUPABASE_SERVICE_KEY in all Authorization header values. (5) Replace YOUR_SLACK_WEBHOOK_URL. (6) Two webhook nodes (GET + POST) share the same path — n8n routes by method automatically."
+  }
+}

@@ -1,0 +1,331 @@
+{
+  "name": "Scalar — Instagram DM After-Hours AI Receptionist",
+  "nodes": [
+    {
+      "id": "node-ig-001",
+      "name": "Instagram Webhook (Meta Graph API)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram-inbound",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-ig-001b",
+      "name": "Handle Meta Verification (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 160],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "instagram-inbound",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-ig-001c",
+      "name": "Return hub.challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [440, 160],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {"responseCode": 200}
+      }
+    },
+    {
+      "id": "node-ig-002",
+      "name": "Respond 200 OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [440, 220],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "EVENT_RECEIVED",
+        "options": {"responseCode": 200}
+      }
+    },
+    {
+      "id": "node-ig-003",
+      "name": "Extract IG Message Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 380],
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\n\n// Meta sends: {object:'instagram', entry:[{id, messaging:[{sender:{id}, recipient:{id}, timestamp, message:{mid,text}}]}]}\nconst entry = body?.entry?.[0];\nconst messaging = entry?.messaging?.[0];\n\nif (!messaging || messaging.read || messaging.delivery) return []; // ignore read receipts\n\nconst senderId = messaging.sender?.id;\nconst recipientId = messaging.recipient?.id;\nconst messageText = messaging.message?.text || '[non-text message]';\nconst messageId = messaging.message?.mid;\nconst timestamp = messaging.timestamp;\n\nif (!senderId || !messageText) return [];\n\nreturn [{ json: { senderId, recipientId, messageText, messageId, timestamp, igPageId: recipientId } }];"
+      }
+    },
+    {
+      "id": "node-ig-004",
+      "name": "Get IG Sender Profile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [660, 380],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v19.0/{{ $json.senderId }}?fields=name,username&access_token=YOUR_PAGE_ACCESS_TOKEN",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-ig-005",
+      "name": "Merge Profile + Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 380],
+      "parameters": {
+        "jsCode": "const profile = $input.first().json;\nconst msgData = $('Extract IG Message Data').first().json;\nreturn [{ json: {\n  ...msgData,\n  contactName: profile.name || profile.username || 'Instagram User',\n  igUsername: profile.username || null\n} }];"
+      }
+    },
+    {
+      "id": "node-ig-006",
+      "name": "Business Hours Check (HKT)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1060, 380],
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst hkOffset = 8 * 60;\nconst utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();\nconst hkMinutes = (utcMinutes + hkOffset) % (24 * 60);\nconst hkDay = new Date(now.getTime() + hkOffset * 60000).getUTCDay();\n\nconst isWeekday = hkDay >= 1 && hkDay <= 6;\nconst isOpenHours = hkMinutes >= 540 && hkMinutes < 1140;\nconst isBusinessHours = isWeekday && isOpenHours;\n\nreturn [{ json: { ...$input.first().json, isBusinessHours } }];"
+      }
+    },
+    {
+      "id": "node-ig-007",
+      "name": "Route: Business Hours?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1260, 380],
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": false, "typeValidation": "strict"},
+          "conditions": [{"id": "cond-01", "leftValue": "={{ $json.isBusinessHours }}", "rightValue": true, "operator": {"type": "boolean", "operation": "equals"}}],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "node-ig-008",
+      "name": "Lookup GHL Contact (IG)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1460, 480],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://services.leadconnectorhq.com/contacts/?query={{ encodeURIComponent($json.senderId) }}&locationId=YOUR_GHL_LOCATION_ID",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Version", "value": "2021-07-28"}]}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "ghl-api-key", "name": "GHL API Key"}}
+    },
+    {
+      "id": "node-ig-009",
+      "name": "Build IG Conversation Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1660, 480],
+      "parameters": {
+        "jsCode": "const contactData = $input.first().json;\nconst contacts = contactData.contacts || [];\nconst existingContact = contacts[0] || null;\n\nlet conversationHistory = [];\nif (existingContact) {\n  const historyField = existingContact.customFields?.find(f => f.key === 'scalar_ig_history');\n  if (historyField?.value) {\n    try { conversationHistory = JSON.parse(historyField.value).slice(-12); } catch(e) {}\n  }\n}\n\nconst msgData = $('Merge Profile + Message').first().json;\n\nreturn [{ json: {\n  ...msgData,\n  existingContact,\n  ghlContactId: existingContact?.id || null,\n  conversationHistory,\n  resolvedName: existingContact?.firstName || msgData.contactName\n} }];"
+      }
+    },
+    {
+      "id": "node-ig-010",
+      "name": "Generate AI Response (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1860, 480],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ model: 'gpt-4o', messages: [{role:'system',content:'SYSTEM_PROMPT_PLACEHOLDER — replace with full prompt from ai-receptionist-prompt.txt. Note: this is an Instagram DM context; keep responses under 1000 chars where possible.'},...($json.conversationHistory || []).map(m=>({role:m.role,content:m.content})),{role:'user',content:$json.messageText}], max_tokens: 500, temperature: 0.7 }) }}"
+        },
+        "options": {}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "openai-api-key", "name": "OpenAI API Key"}}
+    },
+    {
+      "id": "node-ig-011",
+      "name": "Parse AI Response (IG)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2060, 480],
+      "parameters": {
+        "jsCode": "const aiRaw = $input.first().json.choices[0].message.content;\n\nlet bookingData = null;\nconst bookingMatch = aiRaw.match(/\\[BOOKING_INTENT\\]([\\s\\S]*?)\\[\\/BOOKING_INTENT\\]/);\nif (bookingMatch) {\n  try { bookingData = JSON.parse(bookingMatch[1]); } catch(e) {}\n}\n\nconst cleanResponse = aiRaw.replace(/\\[BOOKING_INTENT\\][\\s\\S]*?\\[\\/BOOKING_INTENT\\]/g, '').trim();\n\nconst prevHistory = $('Build IG Conversation Context').first().json.conversationHistory || [];\nconst updatedHistory = [\n  ...prevHistory,\n  { role: 'user', content: $('Build IG Conversation Context').first().json.messageText },\n  { role: 'assistant', content: cleanResponse }\n].slice(-20);\n\nconst ctx = $('Build IG Conversation Context').first().json;\n\nreturn [{ json: {\n  ...ctx,\n  aiResponse: cleanResponse,\n  bookingData,\n  hasBookingIntent: !!bookingData,\n  updatedHistoryJson: JSON.stringify(updatedHistory)\n} }];"
+      }
+    },
+    {
+      "id": "node-ig-012",
+      "name": "Upsert GHL Contact (IG)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2260, 480],
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/contacts/upsert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ locationId: 'YOUR_GHL_LOCATION_ID', firstName: $json.resolvedName, source: 'Instagram AI', tags: ['instagram-lead','ai-handled'], customFields: [{ key: 'scalar_ig_history', field_value: $json.updatedHistoryJson },{ key: 'last_channel', field_value: 'Instagram' },{ key: 'ig_sender_id', field_value: $json.senderId }] }) }}"
+        },
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Version", "value": "2021-07-28"}]}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "ghl-api-key", "name": "GHL API Key"}}
+    },
+    {
+      "id": "node-ig-013",
+      "name": "Send IG DM Reply (Graph API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2460, 480],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $json.igPageId }}/messages",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ recipient: { id: $json.senderId }, message: { text: $json.aiResponse }, messaging_type: 'RESPONSE', access_token: 'YOUR_PAGE_ACCESS_TOKEN' }) }}"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "node-ig-014",
+      "name": "Has Booking Intent? (IG)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2660, 480],
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": false, "typeValidation": "strict"},
+          "conditions": [{"id": "cond-02", "leftValue": "={{ $json.hasBookingIntent }}", "rightValue": true, "operator": {"type": "boolean", "operation": "equals"}}],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "node-ig-015",
+      "name": "Create GHL Opportunity (IG)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2860, 380],
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/opportunities/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ pipelineId: 'YOUR_GHL_PIPELINE_ID', locationId: 'YOUR_GHL_LOCATION_ID', name: ($json.bookingData?.name || $json.resolvedName) + ' — ' + ($json.bookingData?.service || 'Consultation'), pipelineStageId: 'YOUR_STAGE_ID_CONSULTATION_REQUESTED', status: 'open', contactId: $json.ghlContactId, source: 'Instagram AI' }) }}"
+        },
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Version", "value": "2021-07-28"}]}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "ghl-api-key", "name": "GHL API Key"}}
+    },
+    {
+      "id": "node-ig-016",
+      "name": "Notify Team (Business Hours - IG)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1460, 280],
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/conversations/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ type: 'Custom', contactId: $json.ghlContactId, message: '[Instagram DM] ' + $json.contactName + ': ' + $json.messageText, locationId: 'YOUR_GHL_LOCATION_ID' }) }}"
+        },
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Version", "value": "2021-07-28"}]}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "ghl-api-key", "name": "GHL API Key"}}
+    }
+  ],
+  "connections": {
+    "Instagram Webhook (Meta Graph API)": {
+      "main": [
+        [
+          {"node": "Respond 200 OK", "type": "main", "index": 0},
+          {"node": "Extract IG Message Data", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Handle Meta Verification (GET)": {
+      "main": [[{"node": "Return hub.challenge", "type": "main", "index": 0}]]
+    },
+    "Extract IG Message Data": {
+      "main": [[{"node": "Get IG Sender Profile", "type": "main", "index": 0}]]
+    },
+    "Get IG Sender Profile": {
+      "main": [[{"node": "Merge Profile + Message", "type": "main", "index": 0}]]
+    },
+    "Merge Profile + Message": {
+      "main": [[{"node": "Business Hours Check (HKT)", "type": "main", "index": 0}]]
+    },
+    "Business Hours Check (HKT)": {
+      "main": [[{"node": "Route: Business Hours?", "type": "main", "index": 0}]]
+    },
+    "Route: Business Hours?": {
+      "main": [
+        [{"node": "Notify Team (Business Hours - IG)", "type": "main", "index": 0}],
+        [{"node": "Lookup GHL Contact (IG)", "type": "main", "index": 0}]
+      ]
+    },
+    "Lookup GHL Contact (IG)": {
+      "main": [[{"node": "Build IG Conversation Context", "type": "main", "index": 0}]]
+    },
+    "Build IG Conversation Context": {
+      "main": [[{"node": "Generate AI Response (OpenAI)", "type": "main", "index": 0}]]
+    },
+    "Generate AI Response (OpenAI)": {
+      "main": [[{"node": "Parse AI Response (IG)", "type": "main", "index": 0}]]
+    },
+    "Parse AI Response (IG)": {
+      "main": [[{"node": "Upsert GHL Contact (IG)", "type": "main", "index": 0}]]
+    },
+    "Upsert GHL Contact (IG)": {
+      "main": [[{"node": "Send IG DM Reply (Graph API)", "type": "main", "index": 0}]]
+    },
+    "Send IG DM Reply (Graph API)": {
+      "main": [[{"node": "Has Booking Intent? (IG)", "type": "main", "index": 0}]]
+    },
+    "Has Booking Intent? (IG)": {
+      "main": [
+        [{"node": "Create GHL Opportunity (IG)", "type": "main", "index": 0}],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "_meta": {
+    "instanceId": "scalar-demo",
+    "notes": "SETUP REQUIRED: (1) Replace YOUR_PAGE_ACCESS_TOKEN with a long-lived Page Access Token from Meta Developer Console. (2) Replace YOUR_GHL_LOCATION_ID, YOUR_GHL_PIPELINE_ID, YOUR_STAGE_ID_CONSULTATION_REQUESTED. (3) Configure Meta Webhook: URL = your-n8n-url/webhook/instagram-inbound, fields = messages, messaging_postbacks. (4) The GET webhook handles Meta's verification challenge automatically."
+  }
+}

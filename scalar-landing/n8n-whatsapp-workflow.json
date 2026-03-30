@@ -1,0 +1,281 @@
+{
+  "name": "Scalar — WhatsApp After-Hours AI Receptionist (WATI)",
+  "nodes": [
+    {
+      "id": "node-wa-001",
+      "name": "WhatsApp Webhook (WATI)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-inbound",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "node-wa-002",
+      "name": "Respond 200 OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [440, 180],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {"responseCode": 200}
+      }
+    },
+    {
+      "id": "node-wa-003",
+      "name": "Extract Message Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 380],
+      "parameters": {
+        "jsCode": "// WATI webhook payload format\n// Only process inbound messages from contacts (owner: false)\n// and only actual message events (not status updates)\n\nconst body = $input.first().json.body || $input.first().json;\n\n// Filter: only process messages FROM the contact, not from the agent\nif (body.owner === true) return [];\n\n// Filter: only process 'message' events (WATI also sends status events)\nif (body.eventType && body.eventType !== 'message') return [];\n\n// Extract fields from WATI payload\nconst waId = body.waId || body.messageContact?.waId || '';\nconst contactName = body.senderName\n  || body.messageContact?.name\n  || body.messageContact?.firstName\n  || 'Guest';\n\n// Message text — handle text and interactive (button/list) replies\nlet messageText = '';\nif (body.type === 'text') {\n  messageText = body.text || '';\n} else if (body.type === 'interactive') {\n  messageText = body.interactive?.buttonReply?.title\n    || body.interactive?.listReply?.title\n    || '[interactive message]';\n} else {\n  messageText = `[${body.type || 'unknown'} message]`;\n}\n\nif (!waId || !messageText) return [];\n\nreturn [{ json: {\n  waId,\n  fromPhone: waId,\n  messageText,\n  messageType: body.type || 'text',\n  contactName,\n  conversationId: body.conversationId || null,\n  watiMessageId: body.id || null,\n  timestamp: body.timestamp || Date.now()\n} }];"
+      }
+    },
+    {
+      "id": "node-wa-004",
+      "name": "Business Hours Check (HKT)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 380],
+      "parameters": {
+        "jsCode": "// HK Business Hours: Mon–Sat 09:00–19:00 HKT (UTC+8)\nconst now = new Date();\nconst hkOffset = 8 * 60;\nconst utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();\nconst hkMinutes = (utcMinutes + hkOffset) % (24 * 60);\nconst hkDay = new Date(now.getTime() + hkOffset * 60000).getUTCDay();\n// 0=Sun, 1=Mon, 6=Sat\n\nconst isWeekday = hkDay >= 1 && hkDay <= 6;\nconst isOpenHours = hkMinutes >= 540 && hkMinutes < 1140; // 9am–7pm\nconst isBusinessHours = isWeekday && isOpenHours;\n\nconst hkHH = Math.floor(hkMinutes/60).toString().padStart(2,'0');\nconst hkMM = (hkMinutes%60).toString().padStart(2,'0');\n\nreturn [{ json: {\n  ...$input.first().json,\n  isBusinessHours,\n  hkTime: `${hkHH}:${hkMM}`,\n  hkDay\n} }];"
+      }
+    },
+    {
+      "id": "node-wa-005",
+      "name": "Route: Business Hours?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [880, 380],
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": false, "typeValidation": "strict"},
+          "conditions": [{"id": "cond-01", "leftValue": "={{ $json.isBusinessHours }}", "rightValue": true, "operator": {"type": "boolean", "operation": "equals"}}],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "node-wa-006",
+      "name": "Log to GHL (Business Hours — WATI Handles Reply)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1100, 260],
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/contacts/upsert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ locationId: 'YOUR_GHL_LOCATION_ID', phone: '+' + $json.fromPhone, firstName: $json.contactName, source: 'WhatsApp (WATI)', tags: ['whatsapp-lead', 'business-hours'], customFields: [{ key: 'last_channel', field_value: 'WhatsApp' }] }) }}"
+        },
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Version", "value": "2021-07-28"}]}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "ghl-api-key", "name": "GHL API Key"}},
+      "_notes": "During business hours, WATI's shared inbox handles the reply. Receptionists see and respond in WATI. We only log the contact to GHL for CRM purposes — no AI reply is sent."
+    },
+    {
+      "id": "node-wa-007",
+      "name": "Lookup GHL Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1100, 480],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://services.leadconnectorhq.com/contacts/?query={{ encodeURIComponent($json.fromPhone) }}&locationId=YOUR_GHL_LOCATION_ID",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Version", "value": "2021-07-28"}]}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "ghl-api-key", "name": "GHL API Key"}}
+    },
+    {
+      "id": "node-wa-008",
+      "name": "Build Conversation Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 480],
+      "parameters": {
+        "jsCode": "const contactData = $input.first().json;\nconst contacts = contactData.contacts || [];\nconst existingContact = contacts[0] || null;\n\nlet conversationHistory = [];\nif (existingContact) {\n  const historyField = existingContact.customFields?.find(f => f.key === 'scalar_wa_history');\n  if (historyField?.value) {\n    try { conversationHistory = JSON.parse(historyField.value).slice(-12); } catch(e) {}\n  }\n}\n\nconst msgData = $('Extract Message Data').first().json;\n\nreturn [{ json: {\n  ...msgData,\n  existingContact,\n  ghlContactId: existingContact?.id || null,\n  conversationHistory,\n  resolvedName: existingContact?.firstName || msgData.contactName\n} }];"
+      }
+    },
+    {
+      "id": "node-wa-009",
+      "name": "Generate AI Response (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1500, 480],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ model: 'gpt-4o', messages: [{role:'system',content:'SYSTEM_PROMPT_PLACEHOLDER — replace with full prompt from ai-receptionist-prompt.txt'},...($json.conversationHistory || []).map(m=>({role:m.role,content:m.content})),{role:'user',content:$json.messageText}], max_tokens: 600, temperature: 0.7 }) }}"
+        },
+        "options": {}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "openai-api-key", "name": "OpenAI API Key"}}
+    },
+    {
+      "id": "node-wa-010",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1700, 480],
+      "parameters": {
+        "jsCode": "const aiRaw = $input.first().json.choices[0].message.content;\n\nlet bookingData = null;\nconst bookingMatch = aiRaw.match(/\\[BOOKING_INTENT\\]([\\s\\S]*?)\\[\\/BOOKING_INTENT\\]/);\nif (bookingMatch) {\n  try { bookingData = JSON.parse(bookingMatch[1]); } catch(e) {}\n}\n\nconst cleanResponse = aiRaw.replace(/\\[BOOKING_INTENT\\][\\s\\S]*?\\[\\/BOOKING_INTENT\\]/g, '').trim();\n\nconst prevHistory = $('Build Conversation Context').first().json.conversationHistory || [];\nconst updatedHistory = [\n  ...prevHistory,\n  { role: 'user', content: $('Build Conversation Context').first().json.messageText },\n  { role: 'assistant', content: cleanResponse }\n].slice(-20);\n\nconst ctx = $('Build Conversation Context').first().json;\n\nreturn [{ json: {\n  ...ctx,\n  aiResponse: cleanResponse,\n  bookingData,\n  hasBookingIntent: !!bookingData,\n  updatedHistoryJson: JSON.stringify(updatedHistory)\n} }];"
+      }
+    },
+    {
+      "id": "node-wa-011",
+      "name": "Send Reply via WATI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1900, 480],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://live-mt-server.wati.io/YOUR_WATI_TENANT_ID/api/v1/sendSessionMessage/{{ $json.fromPhone }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ messageText: $json.aiResponse }) }}"
+        },
+        "options": {},
+        "_notes": "WATI endpoint: replace YOUR_WATI_TENANT_ID with your tenant ID (found in WATI dashboard URL). fromPhone must be digits only — no +, no spaces (e.g. 85291234567). Credential: Authorization: Bearer YOUR_WATI_API_KEY"
+      },
+      "credentials": {"httpHeaderAuth": {"id": "wati-api-key", "name": "WATI API Key"}}
+    },
+    {
+      "id": "node-wa-012",
+      "name": "Upsert GHL Contact + Save History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2100, 480],
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/contacts/upsert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ locationId: 'YOUR_GHL_LOCATION_ID', phone: '+' + $json.fromPhone, firstName: $json.resolvedName, source: 'WhatsApp AI (WATI)', tags: ['whatsapp-lead','ai-handled','after-hours'], customFields: [{ key: 'scalar_wa_history', field_value: $json.updatedHistoryJson },{ key: 'last_channel', field_value: 'WhatsApp' }] }) }}"
+        },
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Version", "value": "2021-07-28"}]}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "ghl-api-key", "name": "GHL API Key"}}
+    },
+    {
+      "id": "node-wa-013",
+      "name": "Has Booking Intent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2300, 480],
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": false, "typeValidation": "strict"},
+          "conditions": [{"id": "cond-02", "leftValue": "={{ $json.hasBookingIntent }}", "rightValue": true, "operator": {"type": "boolean", "operation": "equals"}}],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "node-wa-014",
+      "name": "Create GHL Opportunity (Pipeline)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2500, 380],
+      "parameters": {
+        "method": "POST",
+        "url": "https://services.leadconnectorhq.com/opportunities/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "mode": "json",
+          "jsonOutput": "={{ JSON.stringify({ pipelineId: 'YOUR_GHL_PIPELINE_ID', locationId: 'YOUR_GHL_LOCATION_ID', name: ($json.bookingData?.name || $json.resolvedName) + ' — ' + ($json.bookingData?.service || 'Consultation'), pipelineStageId: 'YOUR_STAGE_ID_CONSULTATION_REQUESTED', status: 'open', contactId: $json.ghlContactId, monetaryValue: 0, source: 'WhatsApp AI (WATI)' }) }}"
+        },
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {"parameters": [{"name": "Version", "value": "2021-07-28"}]}
+      },
+      "credentials": {"httpHeaderAuth": {"id": "ghl-api-key", "name": "GHL API Key"}}
+    }
+  ],
+  "connections": {
+    "WhatsApp Webhook (WATI)": {
+      "main": [
+        [
+          {"node": "Respond 200 OK", "type": "main", "index": 0},
+          {"node": "Extract Message Data", "type": "main", "index": 0}
+        ]
+      ]
+    },
+    "Extract Message Data": {
+      "main": [[{"node": "Business Hours Check (HKT)", "type": "main", "index": 0}]]
+    },
+    "Business Hours Check (HKT)": {
+      "main": [[{"node": "Route: Business Hours?", "type": "main", "index": 0}]]
+    },
+    "Route: Business Hours?": {
+      "main": [
+        [{"node": "Log to GHL (Business Hours — WATI Handles Reply)", "type": "main", "index": 0}],
+        [{"node": "Lookup GHL Contact", "type": "main", "index": 0}]
+      ]
+    },
+    "Lookup GHL Contact": {
+      "main": [[{"node": "Build Conversation Context", "type": "main", "index": 0}]]
+    },
+    "Build Conversation Context": {
+      "main": [[{"node": "Generate AI Response (OpenAI)", "type": "main", "index": 0}]]
+    },
+    "Generate AI Response (OpenAI)": {
+      "main": [[{"node": "Parse AI Response", "type": "main", "index": 0}]]
+    },
+    "Parse AI Response": {
+      "main": [[{"node": "Send Reply via WATI", "type": "main", "index": 0}]]
+    },
+    "Send Reply via WATI": {
+      "main": [[{"node": "Upsert GHL Contact + Save History", "type": "main", "index": 0}]]
+    },
+    "Upsert GHL Contact + Save History": {
+      "main": [[{"node": "Has Booking Intent?", "type": "main", "index": 0}]]
+    },
+    "Has Booking Intent?": {
+      "main": [
+        [{"node": "Create GHL Opportunity (Pipeline)", "type": "main", "index": 0}],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "_meta": {
+    "instanceId": "scalar-demo",
+    "provider": "WATI",
+    "notes": "SETUP REQUIRED: (1) Replace YOUR_WATI_TENANT_ID in the Send Reply node URL — find it in your WATI dashboard URL (e.g. live-mt-server.wati.io/12345/...). (2) Set WATI API credential: Settings > Credentials > HTTP Header Auth, Name: 'WATI API Key', Header: 'Authorization', Value: 'Bearer YOUR_WATI_API_KEY'. (3) In WATI dashboard > Settings > Webhooks, set URL to: https://YOUR-N8N-DOMAIN/webhook/whatsapp-inbound. (4) Replace YOUR_GHL_LOCATION_ID, YOUR_GHL_PIPELINE_ID, YOUR_STAGE_ID_CONSULTATION_REQUESTED. IMPORTANT: During business hours, WATI's shared inbox handles replies — receptionists work in WATI. The AI only fires on the after-hours branch."
+  }
+}
